@@ -2,3 +2,5 @@ sentence-transformers
 pymupdf
 streamlit
 numpy
+bcrypt
+python-dotenv

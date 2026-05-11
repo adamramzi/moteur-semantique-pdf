@@ -3,6 +3,7 @@ __pycache__/
 index_faiss/
 *.pyc
 .env
+users.db
 *.pyo
 .DS_Store
 resultats_tests.txt

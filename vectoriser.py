@@ -22,9 +22,18 @@ def creer_index(vecteurs):
     return vecteurs
 
 
+def get_user_index_path(user_id: int, base: str = "index_faiss") -> str:
+    """
+    Retourne le chemin du dossier d'index propre à l'utilisateur.
+    Ex : index_faiss/user_42/
+    """
+    return os.path.join(base, f"user_{user_id}")
+
+
 def sauvegarder_index(vecteurs, chunks, path="index_faiss"):
     """
     Sauvegarde les vecteurs et les chunks sur le disque avec pickle.
+    Le path peut être un dossier utilisateur : index_faiss/user_{id}/
     """
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, "vecteurs.pkl"), "wb") as f:
@@ -37,6 +46,7 @@ def charger_index(path="index_faiss"):
     """
     Charge les vecteurs et chunks depuis le disque.
     Retourne (vecteurs, chunks) ou (None, None) si introuvable.
+    Le path peut être un dossier utilisateur : index_faiss/user_{id}/
     """
     vecteurs_path = os.path.join(path, "vecteurs.pkl")
     chunks_path = os.path.join(path, "chunks.pkl")
