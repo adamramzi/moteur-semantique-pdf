@@ -181,7 +181,7 @@ INDEX_DIR = get_user_index_path(user_id, INDEX_BASE) if user_id else os.path.joi
 # ── Modèle ────────────────────────────────────────────────────
 @st.cache_resource(show_spinner="⏳ Chargement du moteur…")
 def charger_modele():
-    return SentenceTransformer("all-MiniLM-L6-v2")
+    return SentenceTransformer("all-mpnet-base-v2")
 
 # ── Session state — toujours fresh à chaque nouvelle connexion ──
 if "_user_id_charge" not in st.session_state or st.session_state.get("_user_id_charge") != user_id:

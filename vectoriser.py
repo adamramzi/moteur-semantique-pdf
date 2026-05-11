@@ -3,8 +3,8 @@ import pickle
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-# Charge le modèle une seule fois
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Charge le modèle une seule fois — all-mpnet-base-v2 est plus précis que MiniLM
+model = SentenceTransformer('all-mpnet-base-v2')
 
 
 def vectoriser_chunks(chunks):
@@ -60,10 +60,29 @@ def charger_index(path="index_faiss"):
     return None, None
 
 
+def _extraire_texte(chunk):
+    """Extrait le texte d'un chunk (dict ou string)."""
+    return chunk["texte"] if isinstance(chunk, dict) else chunk
+
+
+def _enrichir_contexte(idx, chunks):
+    """
+    Retourne le texte enrichi avec les chunks précédent et suivant.
+    chunk_precedent + chunk_actuel + chunk_suivant
+    """
+    parties = []
+    if idx > 0:
+        parties.append(_extraire_texte(chunks[idx - 1]))
+    parties.append(_extraire_texte(chunks[idx]))
+    if idx < len(chunks) - 1:
+        parties.append(_extraire_texte(chunks[idx + 1]))
+    return " ".join(parties)
+
+
 def rechercher(query_vector, vecteurs, chunks, top_k=3):
     """
     Calcule la similarité cosinus entre query_vector et tous les vecteurs.
-    Retourne une liste de (score, chunk_index, texte) triée par score décroissant.
+    Retourne les top_k résultats avec texte enrichi (chunk précédent + actuel + suivant).
 
     Supporte les chunks sous forme de strings simples ou de dicts avec métadonnées.
     """
@@ -79,20 +98,18 @@ def rechercher(query_vector, vecteurs, chunks, top_k=3):
 
     resultats = []
     for idx in top_indices:
-        chunk = chunks[idx]
-        # Supporte les chunks dict (nouveau) ou string (ancien)
-        texte = chunk["texte"] if isinstance(chunk, dict) else chunk
         resultats.append({
             "score": float(scores[idx]),
             "chunk_index": int(idx),
-            "texte": texte,
+            "texte": _enrichir_contexte(idx, chunks),
         })
     return resultats
 
 
 def rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=3):
     """
-    Calcule la similarité cosinus et retourne les résultats avec métadonnées complètes.
+    Calcule la similarité cosinus et retourne les résultats avec métadonnées complètes
+    et texte enrichi (chunk précédent + actuel + suivant).
 
     Args:
         query_vector: Vecteur de la requête (numpy array).
@@ -117,11 +134,13 @@ def rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=3):
     resultats = []
     for idx in top_indices:
         chunk = chunks[idx]
+        texte_enrichi = _enrichir_contexte(idx, chunks)
+
         if isinstance(chunk, dict):
             resultats.append({
                 "score": float(scores[idx]),
                 "chunk_index": int(idx),
-                "texte": chunk.get("texte", ""),
+                "texte": texte_enrichi,
                 "page": chunk.get("page", 0),
                 "fichier": chunk.get("fichier", ""),
             })
@@ -129,7 +148,7 @@ def rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=3):
             resultats.append({
                 "score": float(scores[idx]),
                 "chunk_index": int(idx),
-                "texte": chunk,
+                "texte": texte_enrichi,
                 "page": 0,
                 "fichier": "",
             })

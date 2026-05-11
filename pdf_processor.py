@@ -110,55 +110,60 @@ def extraire_texte_ocr(pdf_path, pages=None):
     return paragraphes
 
 
-def decouper_chunks(paragraphes_meta, taille=200):
+def decouper_chunks(paragraphes_meta, taille=100, overlap=20):
     """
     Prend une liste de dictionnaires avec métadonnées, les regroupe en chunks
-    de maximum 'taille' mots, et retourne une liste de dicts enrichis.
+    de maximum 'taille' mots avec un chevauchement de 'overlap' mots.
 
-    Chaque chunk conserve le numéro de page du premier paragraphe qui le compose.
+    Le chevauchement permet de conserver le contexte entre deux chunks consécutifs.
+    Exemple : chunk1 = mots 1→100, chunk2 = mots 80→180, chunk3 = mots 160→260
+
+    Chaque chunk conserve le numéro de page du premier mot qui le compose.
 
     Args:
         paragraphes_meta: Liste de dict {"texte": ..., "page": ..., "fichier": ...}
-        taille:           Nombre maximum de mots par chunk.
+        taille:           Nombre maximum de mots par chunk (défaut: 100).
+        overlap:          Nombre de mots de chevauchement entre chunks (défaut: 20).
 
     Returns:
         Liste de dict : {"texte": "...", "page": N, "fichier": "nom.pdf"}
     """
-    chunks = []
-    chunk_mots = []
-    mots_courants = 0
-    page_debut = 1
-    fichier = ""
-
+    # Construire une liste plate de (mot, page, fichier) pour le sliding window
+    mots_avec_meta = []
     for para in paragraphes_meta:
         texte = para["texte"]
-        mots_para = texte.split()
+        page = para.get("page", 1)
+        fichier = para.get("fichier", "")
+        for mot in texte.split():
+            mots_avec_meta.append((mot, page, fichier))
 
-        if not fichier:
-            fichier = para.get("fichier", "")
-            page_debut = para.get("page", 1)
+    if not mots_avec_meta:
+        return []
 
-        # Si ajouter ce paragraphe dépasse la taille max, sauvegarder le chunk
-        if mots_courants + len(mots_para) > taille and chunk_mots:
-            chunks.append({
-                "texte": " ".join(chunk_mots),
-                "page": page_debut,
-                "fichier": fichier,
-            })
-            chunk_mots = mots_para
-            mots_courants = len(mots_para)
-            page_debut = para.get("page", 1)
-            fichier = para.get("fichier", "")
-        else:
-            chunk_mots.extend(mots_para)
-            mots_courants += len(mots_para)
+    chunks = []
+    pas = max(1, taille - overlap)  # Avancer de (taille - overlap) mots à chaque itération
+    i = 0
 
-    # Ajouter le dernier chunk
-    if chunk_mots:
+    while i < len(mots_avec_meta):
+        fin = min(i + taille, len(mots_avec_meta))
+        fenetre = mots_avec_meta[i:fin]
+
+        texte_chunk = " ".join(m[0] for m in fenetre)
+        page_debut = fenetre[0][1]
+        fichier = fenetre[0][2]
+
         chunks.append({
-            "texte": " ".join(chunk_mots),
+            "texte": texte_chunk,
             "page": page_debut,
             "fichier": fichier,
         })
 
+        # Avancer avec le pas (taille - overlap)
+        i += pas
+
+        # Éviter de créer un chunk minuscule à la fin
+        if i < len(mots_avec_meta) and len(mots_avec_meta) - i < overlap:
+            break
+
     return chunks
+

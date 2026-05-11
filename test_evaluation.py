@@ -6,9 +6,14 @@ Affiche les résultats dans la console et les sauvegarde dans resultats_tests.tx
 """
 
 import os
+import sys
 from datetime import datetime
 from vectoriser import charger_index, rechercher
 from sentence_transformers import SentenceTransformer
+
+# Fix encodage Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 # ──────────────────────────────────────────────
 # Configuration
@@ -69,9 +74,9 @@ def evaluer():
     log()
 
     # ── Chargement du modèle ──────────────────────────────────────────────
-    log("🧠 Chargement du moteur d'analyse de texte…")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    log("✅ Moteur prêt")
+    log("🧠 Chargement du moteur d'analyse de texte (all-mpnet-base-v2)…")
+    model = SentenceTransformer("all-mpnet-base-v2")
+    log("✅ Moteur prêt (modèle amélioré)")
     log()
 
     # ── Tests ─────────────────────────────────────────────────────────────
@@ -130,6 +135,15 @@ def evaluer():
         log(f"  Score moyen de correspondance : {score_moyen:.1f}%")
         log(f"  Score minimum                 : {score_min:.1f}%")
         log(f"  Score maximum                 : {score_max:.1f}%")
+        log()
+
+        # Comparaison avec l'ancien score
+        ancien_score = 25.2
+        diff = score_moyen - ancien_score
+        signe = "+" if diff >= 0 else ""
+        log(f"  📊 Ancien score moyen (MiniLM, chunks 200 mots) : {ancien_score:.1f}%")
+        log(f"  📊 Nouveau score moyen (mpnet, chunks 100+overlap) : {score_moyen:.1f}%")
+        log(f"  📈 Évolution : {signe}{diff:.1f} points")
         log()
 
         # Évaluation qualitative
