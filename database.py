@@ -573,6 +573,72 @@ def supprimer_document(user_id: int, nom_fichier: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────
+# Nettoyage des utilisateurs inactifs
+# ──────────────────────────────────────────────────────────────
+def nettoyer_utilisateurs_inactifs(jours: int = 30, index_base: str = "index_faiss") -> int:
+    """
+    Supprime les utilisateurs inactifs depuis plus de N jours.
+
+    Un utilisateur est considéré inactif si :
+        - Sa date d'inscription remonte à plus de `jours` jours
+        - Il n'a aucun document uploadé récemment
+        - Il n'a aucune recherche récente
+
+    Supprime également le dossier index_faiss/user_{id}/ du disque.
+
+    Args:
+        jours:      Nombre de jours d'inactivité avant suppression (défaut: 30).
+        index_base: Dossier racine des index FAISS.
+
+    Returns:
+        Nombre d'utilisateurs supprimés.
+    """
+    import shutil
+
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    seuil = datetime.now()
+    from datetime import timedelta
+    seuil = (seuil - timedelta(days=jours)).strftime("%Y-%m-%d %H:%M:%S")
+
+    # Trouver les utilisateurs dont la date d'inscription est ancienne
+    # ET qui n'ont aucun document ni recherche récente
+    cursor.execute("""
+        SELECT u.id, u.email FROM users u
+        WHERE u.date_inscription < ?
+          AND u.id NOT IN (
+              SELECT DISTINCT user_id FROM documents WHERE date_upload >= ?
+          )
+          AND u.id NOT IN (
+              SELECT DISTINCT user_id FROM recherches WHERE date_recherche >= ?
+          )
+    """, (seuil, seuil, seuil))
+
+    utilisateurs_inactifs = cursor.fetchall()
+    nb_supprimes = 0
+
+    for user in utilisateurs_inactifs:
+        uid = user["id"]
+        # Supprimer les données en base
+        cursor.execute("DELETE FROM recherches WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM documents WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
+        # Supprimer le dossier d'index sur le disque
+        import os
+        user_index_dir = os.path.join(index_base, f"user_{uid}")
+        if os.path.exists(user_index_dir):
+            shutil.rmtree(user_index_dir)
+        nb_supprimes += 1
+
+    conn.commit()
+    conn.close()
+    return nb_supprimes
+
+
+# ──────────────────────────────────────────────────────────────
 # Point d'entrée — test rapide en ligne de commande
 # ──────────────────────────────────────────────────────────────
 if __name__ == "__main__":

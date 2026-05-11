@@ -64,6 +64,8 @@ def rechercher(query_vector, vecteurs, chunks, top_k=3):
     """
     Calcule la similarité cosinus entre query_vector et tous les vecteurs.
     Retourne une liste de (score, chunk_index, texte) triée par score décroissant.
+
+    Supporte les chunks sous forme de strings simples ou de dicts avec métadonnées.
     """
     # Normalisation
     q_norm = query_vector / (np.linalg.norm(query_vector) + 1e-10)
@@ -77,9 +79,59 @@ def rechercher(query_vector, vecteurs, chunks, top_k=3):
 
     resultats = []
     for idx in top_indices:
+        chunk = chunks[idx]
+        # Supporte les chunks dict (nouveau) ou string (ancien)
+        texte = chunk["texte"] if isinstance(chunk, dict) else chunk
         resultats.append({
             "score": float(scores[idx]),
             "chunk_index": int(idx),
-            "texte": chunks[idx]
+            "texte": texte,
         })
     return resultats
+
+
+def rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=3):
+    """
+    Calcule la similarité cosinus et retourne les résultats avec métadonnées complètes.
+
+    Args:
+        query_vector: Vecteur de la requête (numpy array).
+        vecteurs:     Matrice des vecteurs de tous les chunks.
+        chunks:       Liste de dicts {"texte": ..., "page": ..., "fichier": ...}.
+        top_k:        Nombre de résultats à retourner.
+
+    Returns:
+        Liste de dicts triée par score décroissant :
+            {"texte": str, "score": float, "chunk_index": int, "page": int, "fichier": str}
+    """
+    # Normalisation
+    q_norm = query_vector / (np.linalg.norm(query_vector) + 1e-10)
+    v_norms = vecteurs / (np.linalg.norm(vecteurs, axis=1, keepdims=True) + 1e-10)
+
+    # Produit scalaire = similarité cosinus
+    scores = np.dot(v_norms, q_norm)
+
+    # Top K indices
+    top_indices = np.argsort(scores)[::-1][:top_k]
+
+    resultats = []
+    for idx in top_indices:
+        chunk = chunks[idx]
+        if isinstance(chunk, dict):
+            resultats.append({
+                "score": float(scores[idx]),
+                "chunk_index": int(idx),
+                "texte": chunk.get("texte", ""),
+                "page": chunk.get("page", 0),
+                "fichier": chunk.get("fichier", ""),
+            })
+        else:
+            resultats.append({
+                "score": float(scores[idx]),
+                "chunk_index": int(idx),
+                "texte": chunk,
+                "page": 0,
+                "fichier": "",
+            })
+    return resultats
+

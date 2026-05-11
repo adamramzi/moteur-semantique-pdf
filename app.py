@@ -15,12 +15,12 @@ import streamlit as st
 from sentence_transformers import SentenceTransformer
 
 from pdf_processor import extraire_texte, decouper_chunks
-from vectoriser import vectoriser_chunks, creer_index, sauvegarder_index, charger_index, rechercher, get_user_index_path
+from vectoriser import vectoriser_chunks, creer_index, sauvegarder_index, charger_index, rechercher, rechercher_avec_metadata, get_user_index_path
 from database import (
     init_db, get_ip_utilisateur, get_user_id,
     sauvegarder_document, sauvegarder_recherche,
     get_historique_documents, get_historique_recherches,
-    supprimer_document,
+    supprimer_document, nettoyer_utilisateurs_inactifs,
 )
 from auth import afficher_page_auth
 
@@ -35,8 +35,9 @@ st.set_page_config(
 # Import après set_page_config car le module utilise st.cache en interne
 from streamlit_cookies_manager import EncryptedCookieManager
 
-# ── 3. INITIALISATION DB ──────────────────────────────────────
+# ── 3. INITIALISATION DB + NETTOYAGE ─────────────────────────────
 init_db()
+nettoyer_utilisateurs_inactifs(jours=30)
 
 st.markdown("""
 <style>
@@ -308,42 +309,54 @@ uploaded_files = st.file_uploader(
     label_visibility="collapsed",
 )
 
+# Stocker les fichiers uploadés pour le visualiseur PDF
+if uploaded_files:
+    for uf in uploaded_files:
+        if uf.name not in st.session_state.get("pdf_bytes", {}):
+            st.session_state.setdefault("pdf_bytes", {})[uf.name] = uf.getvalue()
+
 if uploaded_files:
     if st.button("⚙️ Analyser et enregistrer les documents", use_container_width=False):
         progress = st.progress(0, text="📖 Lecture du texte en cours…")
         chunks_par_fichier = dict(st.session_state.get("chunks_par_fichier", {}))
         nouveaux_pdfs = 0
+        total = len(uploaded_files)
 
         for i, uploaded_file in enumerate(uploaded_files):
+            num_fichier = i + 1
             # Ignorer si déjà chargé en session
             if uploaded_file.name in chunks_par_fichier:
-                progress.progress(int((i + 1) / len(uploaded_files) * 50), text=f"⏭️ Déjà chargé : {uploaded_file.name}")
+                progress.progress(int(num_fichier / total * 50),
+                    text=f"⏭️ Fichier {num_fichier}/{total} déjà chargé : {uploaded_file.name}")
                 continue
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(uploaded_file.read())
-                tmp_path = tmp.name
+            with st.spinner(f"📄 Analyse du fichier {num_fichier}/{total} : {uploaded_file.name}…"):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(uploaded_file.read())
+                    tmp_path = tmp.name
 
-            try:
-                paragraphes = extraire_texte(tmp_path)
-                chunks = decouper_chunks(paragraphes)
-                chunks_par_fichier[uploaded_file.name] = chunks
-                if user_id:
-                    sauvegarder_document(user_id, uploaded_file.name, len(chunks))
-                nouveaux_pdfs += 1
-            finally:
-                os.unlink(tmp_path)
+                try:
+                    paragraphes = extraire_texte(tmp_path)
+                    chunks = decouper_chunks(paragraphes)
+                    chunks_par_fichier[uploaded_file.name] = chunks
+                    if user_id:
+                        sauvegarder_document(user_id, uploaded_file.name, len(chunks))
+                    nouveaux_pdfs += 1
+                finally:
+                    os.unlink(tmp_path)
 
-            progress.progress(int((i + 1) / len(uploaded_files) * 50), text=f"📄 Fichier lu : {uploaded_file.name}")
+            progress.progress(int(num_fichier / total * 50),
+                text=f"✅ Fichier {num_fichier}/{total} terminé : {uploaded_file.name}")
 
-        # Reconstruire l'index complet avec tous les fichiers
+        # Reconstruire l'index — extraire le texte de chaque chunk dict
         all_chunks = [c for cl in chunks_par_fichier.values() for c in cl]
+        all_textes = [c["texte"] if isinstance(c, dict) else c for c in all_chunks]
 
         if not all_chunks:
             st.error("❌ Impossible de lire le texte de ces fichiers PDF.")
         else:
             progress.progress(60, text="🧠 Analyse du contenu des passages…")
-            vecteurs = vectoriser_chunks(all_chunks)
+            vecteurs = vectoriser_chunks(all_textes)
             progress.progress(80, text="🔗 Préparation de la base de recherche…")
             vecteurs = creer_index(vecteurs)
             progress.progress(90, text="💾 Sauvegarde en cours…")
@@ -515,7 +528,7 @@ else:
         else:
             with st.spinner("Recherche en cours…"):
                 query_vector = model.encode([query])[0]
-                resultats = rechercher(
+                resultats = rechercher_avec_metadata(
                     query_vector,
                     st.session_state["vecteurs"],
                     st.session_state["chunks"],
@@ -545,11 +558,23 @@ else:
 
         contenu_export = f"RÉSULTATS DE RECHERCHE\nQuestion : {q}\nDate     : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}\n" + "=" * 60 + "\n\n"
 
-        for res in st.session_state["derniers_resultats"]:
+        for idx_res, res in enumerate(st.session_state["derniers_resultats"]):
             score_pct     = res["score"] * 100
             texte         = res["texte"]
             texte_affiche = texte if len(texte) <= 600 else texte[:600] + "…"
             chunk_num     = res["chunk_index"] + 1
+            page_num      = res.get("page", 0)
+            fichier_nom   = res.get("fichier", "")
+
+            # Métadonnées sous le passage
+            meta_html = ""
+            if fichier_nom or page_num:
+                meta_parts = []
+                if fichier_nom:
+                    meta_parts.append(f"📄 Fichier : <b>{fichier_nom}</b>")
+                if page_num:
+                    meta_parts.append(f"📖 Page : <b>{page_num}</b>")
+                meta_html = f'<div style="color:#94a3b8;font-size:0.82rem;margin-top:0.6rem;padding-top:0.5rem;border-top:1px solid rgba(255,255,255,0.06);">{" &nbsp;|&nbsp; ".join(meta_parts)}</div>'
 
             st.markdown(f"""
             <div class="result-card">
@@ -558,10 +583,29 @@ else:
                     <span class="score-badge">{score_pct:.1f}% correspondance</span>
                 </div>
                 <div class="result-text">{texte_affiche}</div>
+                {meta_html}
             </div>
             """, unsafe_allow_html=True)
 
-            contenu_export += f"Passage #{chunk_num} — Correspondance : {score_pct:.1f}%\n" + "-" * 40 + f"\n{texte}\n\n"
+            # Bouton visualiseur PDF
+            pdf_data = st.session_state.get("pdf_bytes", {}).get(fichier_nom)
+            if pdf_data and fichier_nom:
+                with st.expander(f"👁️ Voir le PDF — {fichier_nom}", expanded=False):
+                    st.download_button(
+                        label=f"💾 Télécharger {fichier_nom}",
+                        data=pdf_data,
+                        file_name=fichier_nom,
+                        mime="application/pdf",
+                        key=f"dl_pdf_{idx_res}_{fichier_nom}",
+                    )
+                    st.info(f"📖 Le passage trouvé se trouve à la **page {page_num}** de ce document.")
+
+            contenu_export += f"Passage #{chunk_num} — Correspondance : {score_pct:.1f}%"
+            if fichier_nom:
+                contenu_export += f" | Fichier : {fichier_nom}"
+            if page_num:
+                contenu_export += f" | Page : {page_num}"
+            contenu_export += "\n" + "-" * 40 + f"\n{texte}\n\n"
 
         st.markdown("---")
         st.download_button(
