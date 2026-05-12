@@ -21,65 +21,44 @@ MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
 
 
-def _get_headers():
-    """Retourne les headers pour l'API HuggingFace."""
-    if not HF_API_TOKEN:
-        raise ValueError(
-            "Le token d'accès Hugging Face (HF_API_TOKEN) est manquant. "
-            "Veuillez ajouter 'HF_API_TOKEN' dans vos variables d'environnement Vercel ou dans votre fichier .env !"
-        )
-    return {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {HF_API_TOKEN.strip()}"
-    }
-
-
 def _embed_batch(texts, batch_size=32):
     """
-    Envoie les textes par batches à l'API HuggingFace pour obtenir les embeddings.
-    Gère le retry en cas de modèle en cours de chargement (cold start).
-
-    Args:
-        texts: Liste de chaînes de caractères.
-        batch_size: Taille des batches (défaut: 32).
-
-    Returns:
-        numpy array de shape (len(texts), embedding_dim).
+    Envoie les textes par batches à l'API HuggingFace via le client officiel.
     """
+    token = os.getenv("HF_API_TOKEN", "").strip()
+    if not token:
+        raise ValueError(
+            "Le token d'accès Hugging Face (HF_API_TOKEN) est manquant. "
+            "Veuillez ajouter 'HF_API_TOKEN' dans vos variables d'environnement Vercel !"
+        )
+    
+    from huggingface_hub import InferenceClient
+    client = InferenceClient(token=token)
+    
     all_embeddings = []
-    headers = _get_headers()
+    # Le nom exact du modèle
+    model_id = "sentence-transformers/all-mpnet-base-v2"
 
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
-
+        
         for attempt in range(MAX_RETRIES):
             try:
-                response = requests.post(
-                    HF_API_URL,
-                    headers=headers,
-                    json={"inputs": batch, "options": {"wait_for_model": True}},
-                    timeout=120,
-                )
-
-                if response.status_code == 200:
-                    embeddings = response.json()
-                    all_embeddings.extend(embeddings)
-                    break
-                elif response.status_code == 503:
-                    # Model is loading, wait and retry
-                    wait_time = RETRY_DELAY * (attempt + 1)
-                    time.sleep(wait_time)
-                else:
-                    raise Exception(
-                        f"HuggingFace API error {response.status_code}: {response.text}"
-                    )
-            except requests.exceptions.Timeout:
+                # Le client gère automatiquement le bon endpoint (feature-extraction)
+                output = client.feature_extraction(batch, model=model_id)
+                # L'output est un objet ou une liste de listes. On le convertit.
+                embeddings = np.array(output, dtype=np.float32)
+                all_embeddings.append(embeddings)
+                break
+            except Exception as e:
                 if attempt < MAX_RETRIES - 1:
-                    time.sleep(RETRY_DELAY)
+                    time.sleep(RETRY_DELAY * (attempt + 1))
                 else:
-                    raise Exception("HuggingFace API timeout after retries")
+                    raise Exception(f"Erreur HuggingFace API après retries : {e}")
 
-    return np.array(all_embeddings, dtype=np.float32)
+    if all_embeddings:
+        return np.vstack(all_embeddings)
+    return np.array([], dtype=np.float32)
 
 
 def get_model():
