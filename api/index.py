@@ -332,15 +332,30 @@ async def delete_document(filename: str, request: Request):
 @app.post("/api/reset")
 async def reset_all(request: Request):
     user = get_current_user(request)
-    user_id = user["user_id"]
-    index_dir = get_user_index_path(user_id, INDEX_BASE)
+    email_session = user.get("email")
+    
+    user_id_local = None
+    if email_session:
+        import sqlite3
+        from database import DB_PATH
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        # Récupérer le user_id depuis l'email
+        cursor.execute("SELECT id FROM users WHERE email = ?", (email_session.strip().lower(),))
+        row = cursor.fetchone()
+        print("user_id trouvé:", row)
+        if row:
+            user_id_local = row[0]
+            # Supprimer UNIQUEMENT les documents et recherches — jamais l'utilisateur
+            cursor.execute("DELETE FROM documents WHERE user_id = ?", (user_id_local,))
+            cursor.execute("DELETE FROM recherches WHERE user_id = ?", (user_id_local,))
+            conn.commit()
+        conn.close()
 
-    docs = get_historique_documents(user_id)
-    for doc in docs:
-        supprimer_document(user_id, doc["nom_fichier"])
-
-    if os.path.exists(index_dir):
-        shutil.rmtree(index_dir)
+    if user_id_local:
+        index_dir = get_user_index_path(user_id_local, INDEX_BASE)
+        if os.path.exists(index_dir):
+            shutil.rmtree(index_dir)
 
     return {"message": "Tous vos documents ont été supprimés."}
 
