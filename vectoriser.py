@@ -13,7 +13,7 @@ import requests
 import time
 
 # ── Configuration ─────────────────────────────────────────────
-HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-mpnet-base-v2"
+HF_API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/all-mpnet-base-v2"
 HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
 
 # Retry settings
