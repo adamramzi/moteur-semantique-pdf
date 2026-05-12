@@ -238,66 +238,75 @@ async def me(request: Request):
 # ── Routes Documents ────────────────────────────────────────
 @app.post("/api/upload")
 async def upload_files(request: Request, files: List[UploadFile] = File(...)):
-    user = get_current_user(request)
-    user_id = user["user_id"]
-    index_dir = get_user_index_path(user_id, INDEX_BASE)
+    try:
+        user = get_current_user(request)
+        user_id = user["user_id"]
+        index_dir = get_user_index_path(user_id, INDEX_BASE)
 
-    # Charger l'index existant
-    vecteurs_existants, chunks_existants = charger_index(index_dir)
-    chunks_par_fichier = {}
-    if chunks_existants:
-        for c in chunks_existants:
-            if isinstance(c, dict):
-                fname = c.get("fichier", "unknown")
-                chunks_par_fichier.setdefault(fname, []).append(c)
+        # Charger l'index existant
+        vecteurs_existants, chunks_existants = charger_index(index_dir)
+        chunks_par_fichier = {}
+        if chunks_existants:
+            for c in chunks_existants:
+                if isinstance(c, dict):
+                    fname = c.get("fichier", "unknown")
+                    chunks_par_fichier.setdefault(fname, []).append(c)
 
-    nouveaux_docs = 0
-    for uploaded_file in files:
-        if uploaded_file.filename in chunks_par_fichier:
-            continue  # Déjà indexé
+        nouveaux_docs = 0
+        for uploaded_file in files:
+            if uploaded_file.filename in chunks_par_fichier:
+                continue  # Déjà indexé
 
-        ext = os.path.splitext(uploaded_file.filename)[1].lower()
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-            content = await uploaded_file.read()
-            tmp.write(content)
-            tmp_path = tmp.name
+            ext = os.path.splitext(uploaded_file.filename)[1].lower()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                content = await uploaded_file.read()
+                tmp.write(content)
+                tmp_path = tmp.name
 
-        try:
-            paragraphes = extraire_texte(tmp_path)
-            if not paragraphes:
-                continue
-            
-            # Correction du nom de fichier interne si nécessaire pour le chunks
-            for p in paragraphes:
-                p["fichier"] = uploaded_file.filename
+            try:
+                paragraphes = extraire_texte(tmp_path)
+                if not paragraphes:
+                    continue
                 
-            chunks = decouper_chunks(paragraphes)
-            chunks_par_fichier[uploaded_file.filename] = chunks
-            
-            # type_fichier est l'extension sans le point, majuscule (PDF, DOCX, etc)
-            type_fichier = ext.replace(".", "").upper()
-            sauvegarder_document(user_id, uploaded_file.filename, len(chunks), type_fichier=type_fichier)
-            nouveaux_docs += 1
-        finally:
-            os.unlink(tmp_path)
+                # Correction du nom de fichier interne si nécessaire pour le chunks
+                for p in paragraphes:
+                    p["fichier"] = uploaded_file.filename
+                    
+                chunks = decouper_chunks(paragraphes)
+                chunks_par_fichier[uploaded_file.filename] = chunks
+                
+                # type_fichier est l'extension sans le point, majuscule (PDF, DOCX, etc)
+                type_fichier = ext.replace(".", "").upper()
+                sauvegarder_document(user_id, uploaded_file.filename, len(chunks), type_fichier=type_fichier)
+                nouveaux_docs += 1
+            finally:
+                os.unlink(tmp_path)
 
-    # Reconstruire l'index complet
-    all_chunks = [c for cl in chunks_par_fichier.values() for c in cl]
-    all_textes = [c["texte"] if isinstance(c, dict) else c for c in all_chunks]
+        # Reconstruire l'index complet
+        all_chunks = [c for cl in chunks_par_fichier.values() for c in cl]
+        all_textes = [c["texte"] if isinstance(c, dict) else c for c in all_chunks]
 
-    if not all_chunks:
-        raise HTTPException(status_code=400, detail="Impossible de lire le texte des fichiers uploadés.")
+        if not all_chunks:
+            raise HTTPException(status_code=400, detail="Impossible de lire le texte des fichiers uploadés.")
 
-    vecteurs = vectoriser_chunks(all_textes)
-    vecteurs = creer_index(vecteurs)
-    sauvegarder_index(vecteurs, all_chunks, path=index_dir)
+        vecteurs = vectoriser_chunks(all_textes)
+        vecteurs = creer_index(vecteurs)
+        sauvegarder_index(vecteurs, all_chunks, path=index_dir)
 
-    return {
-        "message": f"{len(all_chunks)} passages enregistrés depuis {len(chunks_par_fichier)} fichier(s).",
-        "nb_pdfs": len(chunks_par_fichier),
-        "nb_passages": len(all_chunks),
-        "nouveaux": nouveaux_pdfs,
-    }
+        return {
+            "message": f"{len(all_chunks)} passages enregistrés depuis {len(chunks_par_fichier)} fichier(s).",
+            "nb_pdfs": len(chunks_par_fichier),
+            "nb_passages": len(all_chunks),
+            "nouveaux": nouveaux_docs,
+        }
+    except Exception as error:
+        print("Erreur serveur:", error)
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(error) or "Erreur interne du serveur"}
+        )
 
 
 @app.get("/api/documents")

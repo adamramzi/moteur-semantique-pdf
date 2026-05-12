@@ -41,8 +41,15 @@ async function api(path, opts = {}) {
     if (!(opts.body instanceof FormData) && opts.body) headers['Content-Type'] = 'application/json';
 
     const res = await fetch(`${API}${path}`, { ...opts, headers });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Erreur serveur');
+    const text = await res.text();
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        console.error("Réponse non-JSON:", text);
+        throw new Error("Erreur serveur: " + text);
+    }
+    if (!res.ok) throw new Error(data.detail || data.error || 'Erreur serveur');
     return data;
 }
 
