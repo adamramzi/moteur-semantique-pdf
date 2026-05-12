@@ -1,69 +1,36 @@
 # 🔍 Moteur de recherche sémantique de documents PDF
 
 Une application web qui permet de rechercher intelligemment dans vos fichiers PDF en posant des questions en langage naturel.
+Entièrement repensée pour fonctionner sur Vercel avec une architecture Serverless.
 
 ## ✨ Fonctionnalités
 
 - 📤 **Upload de PDFs** — Importez un ou plusieurs fichiers PDF
-- 🧠 **Analyse automatique** — Le texte est extrait et analysé automatiquement
+- 🧠 **Analyse automatique** — Le texte est extrait et analysé automatiquement via l'API HuggingFace
 - 🔎 **Recherche intelligente** — Posez une question, trouvez les passages les plus pertinents
-- 📊 **Score de correspondance** — Chaque résultat affiche son pourcentage de pertinence
-- 🕐 **Historique des recherches** — Les 5 dernières recherches sont mémorisées
-- 💾 **Export des résultats** — Téléchargez vos résultats en fichier texte
-- 🔄 **Chargement automatique** — L'index est rechargé au démarrage sans re-uploader
+- 🔐 **Authentification** — Système de comptes utilisateurs avec code de vérification par email
+- 📊 **Historique par utilisateur** — Les recherches et documents sont privés et sauvegardés
+- 🚀 **Compatible Vercel** — Architecture FastAPI prête pour un déploiement gratuit
 
 ## 🛠️ Technologies utilisées
 
 | Composant | Rôle |
 |---|---|
-| `sentence-transformers` | Analyse et compréhension du texte (`all-MiniLM-L6-v2`) |
-| `numpy` | Calcul de similarité (cosinus) |
-| `pymupdf` | Extraction de texte depuis les PDFs |
-| `streamlit` | Interface web interactive |
+| `FastAPI` | Backend API (routes, sécurité, endpoints) |
+| `HuggingFace API` | Modèle `all-mpnet-base-v2` pour la vectorisation sans surcharger le serveur |
+| `SQLite` / `JWT` | Base de données locale pour la gestion des utilisateurs et authentification sécurisée |
+| `Brevo` | Envoi des emails de vérification |
+| `HTML/CSS/JS Vanilla` | Frontend moderne, rapide et responsive |
 
-## 🚀 Installation et lancement
+## 🚀 Lancement en local
 
-```bash
-# 1. Cloner le projet
-git clone https://github.com/VOTRE_USERNAME/moteur-semantique-pdf.git
-cd moteur-semantique-pdf
+1. **Cloner le projet**
+2. **Installer les dépendances** : `pip install -r requirements.txt`
+3. **Créer un fichier `.env`** avec vos clés : `HF_API_TOKEN`, `BREVO_API_KEY`, `EMAIL_SENDER`
+4. **Lancer le serveur** : `python app.py` (ou `uvicorn api.index:app --reload`)
+5. Ouvrez `http://localhost:8000`
 
-# 2. Installer les dépendances
-pip install -r requirements.txt
+## ☁️ Déploiement sur Vercel
 
-# 3. Lancer l'application
-streamlit run app.py
-```
-
-L'application s'ouvre automatiquement sur `http://localhost:8501`
-
-## 📁 Structure du projet
-
-```
-moteur-semantique-pdf/
-├── app.py                # Interface principale Streamlit
-├── pdf_processor.py      # Extraction et découpage du texte PDF
-├── vectoriser.py         # Vectorisation et recherche par similarité
-├── test_evaluation.py    # Script d'évaluation avec 5 questions
-├── requirements.txt      # Dépendances Python
-└── .gitignore
-```
-
-## 📖 Utilisation
-
-1. Ouvrez l'application dans votre navigateur
-2. **Ajoutez vos fichiers PDF** dans la section "Ajouter vos fichiers PDF"
-3. Cliquez sur **"Analyser et enregistrer les documents"**
-4. Dans la section "Poser une question", écrivez votre question
-5. Cliquez sur **"Rechercher"** et consultez les passages trouvés
-6. Téléchargez les résultats si besoin
-
-## 🧪 Évaluation
-
-Pour tester les performances du moteur sur votre PDF indexé :
-
-```bash
-python test_evaluation.py
-```
-
-Les résultats sont sauvegardés dans `resultats_tests.txt`.
+Le projet est préconfiguré pour Vercel grâce au fichier `vercel.json` utilisant les réécritures (`rewrites`).
+Il suffit d'importer le projet sur le tableau de bord Vercel et de configurer vos variables d'environnement. Le dossier `public/` sera servi automatiquement.

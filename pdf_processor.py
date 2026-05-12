@@ -9,15 +9,15 @@ Supporte :
 """
 
 import os
-import fitz  # PyMuPDF
+from pypdf import PdfReader
 
 
 def extraire_texte(pdf_path):
     """
-    Ouvre un fichier PDF avec PyMuPDF, extrait le texte de chaque page
+    Ouvre un fichier PDF avec pypdf, extrait le texte de chaque page
     et retourne une liste de dictionnaires avec métadonnées.
 
-    Si une page ne contient aucun texte, tente l'OCR automatiquement.
+    Si une page ne contient aucun texte, tente l'OCR automatiquement (si easyocr est installé).
 
     Args:
         pdf_path: Chemin vers le fichier PDF.
@@ -26,32 +26,24 @@ def extraire_texte(pdf_path):
         Liste de dict : {"texte": "...", "page": 3, "fichier": "nom.pdf"}
     """
     nom_fichier = os.path.basename(pdf_path)
-    doc = fitz.open(pdf_path)
+    reader = PdfReader(pdf_path)
     paragraphes = []
     pages_vides = []  # Pages sans texte détecté (candidates à l'OCR)
 
-    for num_page, page in enumerate(doc, start=1):
-        texte_page = ""
-        blocs = page.get_text("blocks")
-        for b in blocs:
-            if b[6] == 0:  # 0 = bloc de texte
-                texte = b[4].strip()
-                texte = " ".join(texte.split())
-                if texte:
-                    paragraphes.append({
-                        "texte": texte,
-                        "page": num_page,
-                        "fichier": nom_fichier,
-                    })
-                    texte_page += texte
-
-        # Si aucun texte détecté sur cette page, la marquer pour OCR
-        if not texte_page.strip():
+    for num_page, page in enumerate(reader.pages, start=1):
+        texte = page.extract_text()
+        if texte:
+            texte = " ".join(texte.split())
+            if texte:
+                paragraphes.append({
+                    "texte": texte,
+                    "page": num_page,
+                    "fichier": nom_fichier,
+                })
+        else:
             pages_vides.append(num_page)
 
-    doc.close()
-
-    # Si des pages sont vides, tenter l'OCR
+    # Si des pages sont vides, tenter l'OCR (si disponible)
     if pages_vides:
         paragraphes_ocr = extraire_texte_ocr(pdf_path, pages=pages_vides)
         paragraphes.extend(paragraphes_ocr)
@@ -64,50 +56,10 @@ def extraire_texte(pdf_path):
 
 def extraire_texte_ocr(pdf_path, pages=None):
     """
-    Convertit les pages PDF en images puis applique EasyOCR pour extraire le texte.
-
-    Args:
-        pdf_path: Chemin vers le fichier PDF.
-        pages:    Liste des numéros de page (1-indexed) à traiter.
-                  Si None, traite toutes les pages.
-
-    Returns:
-        Liste de dict : {"texte": "...", "page": N, "fichier": "nom.pdf"}
+    Placeholder pour l'OCR. L'OCR avec EasyOCR est trop lourd pour Vercel.
+    Retourne toujours une liste vide.
     """
-    try:
-        import easyocr
-    except ImportError:
-        # EasyOCR non installé — retourner une liste vide
-        return []
-
-    nom_fichier = os.path.basename(pdf_path)
-    doc = fitz.open(pdf_path)
-    reader = easyocr.Reader(["fr", "en"], gpu=False, verbose=False)
-    paragraphes = []
-
-    for num_page, page in enumerate(doc, start=1):
-        # Ne traiter que les pages demandées
-        if pages is not None and num_page not in pages:
-            continue
-
-        # Convertir la page en image (pixmap) haute résolution
-        mat = fitz.Matrix(2.0, 2.0)  # Zoom 2× pour meilleure qualité OCR
-        pix = page.get_pixmap(matrix=mat)
-        img_bytes = pix.tobytes("png")
-
-        # Appliquer EasyOCR sur les bytes de l'image
-        resultats = reader.readtext(img_bytes, detail=0)
-
-        texte_complet = " ".join(resultats).strip()
-        if texte_complet:
-            paragraphes.append({
-                "texte": texte_complet,
-                "page": num_page,
-                "fichier": nom_fichier,
-            })
-
-    doc.close()
-    return paragraphes
+    return []
 
 
 def decouper_chunks(paragraphes_meta, taille=100, overlap=20):

@@ -19,7 +19,7 @@ import bcrypt
 # ──────────────────────────────────────────────────────────────
 import os as _os
 # Sur Vercel, le filesystem est read-only sauf /tmp
-if _os.getenv("VERCEL"):
+if _os.getenv("VERCEL") or not _os.access(".", _os.W_OK):
     DB_PATH = "/tmp/users.db"
 else:
     DB_PATH = "users.db"

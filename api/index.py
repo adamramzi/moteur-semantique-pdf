@@ -46,7 +46,7 @@ from vectoriser import (
 JWT_SECRET = os.getenv("JWT_SECRET", "moteur_pdf_jwt_secret_2026!")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
-INDEX_BASE = "/tmp/index_faiss" if os.getenv("VERCEL") else "index_faiss"
+INDEX_BASE = "/tmp/index_faiss" if (os.getenv("VERCEL") or not os.access(".", os.W_OK)) else "index_faiss"
 TOP_K = 3
 
 # ── App FastAPI ──────────────────────────────────────────────

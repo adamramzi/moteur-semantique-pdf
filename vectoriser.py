@@ -119,7 +119,7 @@ def get_user_index_path(user_id: int, base: str = "index_faiss") -> str:
     Ex : /tmp/index_faiss/user_42/
     """
     # Sur Vercel, utiliser /tmp (seul dossier writable)
-    if os.getenv("VERCEL"):
+    if os.getenv("VERCEL") or not os.access(".", os.W_OK):
         base = os.path.join("/tmp", base)
     return os.path.join(base, f"user_{user_id}")
 
