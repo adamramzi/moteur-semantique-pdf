@@ -7,3 +7,8 @@ numpy
 bcrypt
 python-dotenv
 requests
+
+python-docx
+python-pptx
+openpyxl
+striprtf

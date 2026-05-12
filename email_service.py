@@ -77,3 +77,55 @@ def envoyer_code_verification(email_destinataire: str, code: str):
 
     except Exception as e:
         return False, str(e)
+
+
+def envoyer_email_reinitialisation(email_destinataire: str, code: str):
+    """
+    Envoie un e-mail HTML de réinitialisation de mot de passe via l'API Brevo.
+    """
+    api_key      = os.getenv("BREVO_API_KEY")
+    email_sender = os.getenv("EMAIL_SENDER")
+
+    if not api_key or not email_sender:
+        return False, (
+            "Variables BREVO_API_KEY et/ou EMAIL_SENDER manquantes. "
+            "Configurez-les dans le fichier .env."
+        )
+
+    html_content = (
+        "<div style='font-family:Arial;text-align:center;padding:30px;"
+        "background:#1a1a2e;color:white;border-radius:15px'>"
+        "<h2 style='color:#a78bfa'>Moteur Sémantique PDF</h2>"
+        "<p>Votre code de réinitialisation de mot de passe est :</p>"
+        f"<h1 style='color:#f43f5e;font-size:50px;letter-spacing:10px'>{code}</h1>"
+        "<p style='color:#94a3b8'>Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet e-mail.</p>"
+        "</div>"
+    )
+
+    payload = {
+        "sender": {"name": "Moteur PDF", "email": email_sender},
+        "to": [{"email": email_destinataire}],
+        "subject": "Réinitialisation de mot de passe - Moteur PDF",
+        "htmlContent": html_content,
+    }
+
+    headers = {
+        "api-key": api_key,
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            json=payload,
+            headers=headers,
+            timeout=15,
+        )
+
+        if response.status_code == 201:
+            return True, "Email envoyé"
+        else:
+            return False, str(response.text)
+
+    except Exception as e:
+        return False, str(e)

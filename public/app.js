@@ -7,6 +7,17 @@ let selectedFiles = [];
 let searchHistory = [];
 
 // ── Utilitaires ─────────────────────────────────────────────
+function getFileIcon(filename) {
+    if (!filename) return '📄';
+    const ext = filename.split('.').pop().toLowerCase();
+    if (ext === 'pdf') return '📄';
+    if (ext === 'docx' || ext === 'doc') return '📝';
+    if (ext === 'pptx' || ext === 'ppt') return '📊';
+    if (ext === 'xlsx' || ext === 'xls') return '📈';
+    if (ext === 'txt' || ext === 'rtf') return '📃';
+    return '📄';
+}
+
 function $(id) { return document.getElementById(id); }
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); $(id).classList.add('active'); }
 
@@ -45,7 +56,10 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         document.querySelectorAll('#auth-screen .auth-form').forEach(f => f.classList.remove('active'));
-        $(btn.dataset.tab === 'login' ? 'login-form' : 'register-form').classList.add('active');
+        let targetFormId = 'login-form';
+        if (btn.dataset.tab === 'register') targetFormId = 'register-form';
+        if (btn.dataset.tab === 'forgot') targetFormId = 'forgot-form';
+        $(targetFormId).classList.add('active');
     });
 });
 
@@ -82,6 +96,53 @@ $('btn-register').addEventListener('click', async () => {
         show('verify-screen');
     } catch (e) { toast(e.message, 'error'); }
     finally { loading(false); }
+});
+
+// ── Forgot Password ─────────────────────────────────────────
+$('btn-forgot-request').addEventListener('click', async () => {
+    const email = $('forgot-email').value.trim();
+    if (!email) return toast('Saisissez votre adresse e-mail.', 'error');
+    try {
+        loading(true, 'Vérification du compte…');
+        const data = await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+        toast(data.message, 'success');
+        regEmail = email; // Reuse regEmail to store the email for reset
+        // Switch to reset form
+        $('forgot-form').classList.remove('active');
+        $('reset-form').classList.add('active');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { loading(false); }
+});
+
+$('btn-reset-password').addEventListener('click', async () => {
+    const code = $('reset-code').value.trim();
+    const newPwd = $('reset-password').value;
+    const confirmPwd = $('reset-password-confirm').value;
+
+    if (!code || !newPwd || !confirmPwd) return toast('Remplissez tous les champs.', 'error');
+    if (newPwd !== confirmPwd) return toast('❌ Les mots de passe ne correspondent pas', 'error');
+    if (newPwd.length < 6) return toast('Minimum 6 caractères pour le mot de passe.', 'error');
+
+    try {
+        loading(true, 'Réinitialisation…');
+        const data = await api('/auth/reset-password', {
+            method: 'POST',
+            body: JSON.stringify({ email: regEmail, code, new_password: newPwd })
+        });
+        toast(data.message, 'success');
+        // Reset forms and go to login tab
+        $('reset-code').value = '';
+        $('reset-password').value = '';
+        $('reset-password-confirm').value = '';
+        $('reset-form').classList.remove('active');
+        $('tab-login').click();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { loading(false); }
+});
+
+$('btn-cancel-reset').addEventListener('click', () => {
+    $('reset-form').classList.remove('active');
+    $('forgot-form').classList.add('active');
 });
 
 // ── Verify ──────────────────────────────────────────────────
@@ -121,8 +182,10 @@ uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classL
 fileInput.addEventListener('change', () => addFiles(fileInput.files));
 
 function addFiles(files) {
+    const validExts = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt', '.rtf'];
     for (const f of files) {
-        if (f.type === 'application/pdf' && !selectedFiles.find(sf => sf.name === f.name)) selectedFiles.push(f);
+        const ext = '.' + f.name.split('.').pop().toLowerCase();
+        if (validExts.includes(ext) && !selectedFiles.find(sf => sf.name === f.name)) selectedFiles.push(f);
     }
     renderFileList();
 }
@@ -134,7 +197,7 @@ function renderFileList() {
     btnC.style.display = 'block';
     list.innerHTML = selectedFiles.map((f, i) => `
         <div class="file-item">
-            <span class="file-item-name">📄 ${f.name}</span>
+            <span class="file-item-name">${getFileIcon(f.name)} ${f.name}</span>
             <span class="file-item-size">${(f.size / 1024).toFixed(0)} Ko</span>
             <button class="file-remove" onclick="removeFile(${i})">✕</button>
         </div>
@@ -144,7 +207,7 @@ window.removeFile = (i) => { selectedFiles.splice(i, 1); renderFileList(); };
 
 // ── Upload Action ───────────────────────────────────────────
 $('btn-upload').addEventListener('click', async () => {
-    if (!selectedFiles.length) return toast('Sélectionnez au moins un PDF.', 'error');
+    if (!selectedFiles.length) return toast('Sélectionnez au moins un document.', 'error');
     const fd = new FormData();
     selectedFiles.forEach(f => fd.append('files', f));
 
@@ -196,7 +259,7 @@ async function loadDashboard() {
 function renderHistory(docs) {
     const el = $('history-content');
     if (!docs.length) {
-        el.innerHTML = `<div class="empty-state">📭 Aucun document analysé. Uploadez votre premier PDF ci-dessus !</div>`;
+        el.innerHTML = `<div class="empty-state">📭 Aucun document analysé. Uploadez votre premier document ci-dessus !</div>`;
         return;
     }
 
@@ -209,7 +272,7 @@ function renderHistory(docs) {
         html += `
         <div class="doc-card">
             <div class="doc-info">
-                <h4>📄 ${d.nom_fichier}</h4>
+                <h4>${getFileIcon(d.nom_fichier)} ${d.nom_fichier}</h4>
                 <div class="doc-meta">🗓️ ${d.date_upload} &nbsp;|&nbsp; 📝 <b>${d.nombre_chunks}</b> passages</div>
             </div>
             <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.nom_fichier.replace(/'/g, "\\'")}')">🗑️</button>
@@ -259,7 +322,7 @@ window.deleteDoc = async (name) => {
 function renderSearchSection(docs) {
     const el = $('search-content');
     if (!docs.length) {
-        el.innerHTML = `<div class="status-warn">⚠️ Ajoutez et analysez au moins un PDF avant de chercher.</div>`;
+        el.innerHTML = `<div class="status-warn">⚠️ Ajoutez et analysez au moins un document avant de chercher.</div>`;
         return;
     }
 
@@ -319,7 +382,7 @@ function renderResults(results, question) {
         const pct = (r.score * 100).toFixed(1);
         const txt = r.texte.length > 600 ? r.texte.substring(0, 600) + '…' : r.texte;
         let meta = '';
-        if (r.fichier) meta += `📄 Fichier : <b>${r.fichier}</b>`;
+        if (r.fichier) meta += `${getFileIcon(r.fichier)} Fichier : <b>${r.fichier}</b>`;
         if (r.page) meta += `${meta ? ' &nbsp;|&nbsp; ' : ''}📖 Page : <b>${r.page}</b>`;
 
         html += `<div class="result-card">

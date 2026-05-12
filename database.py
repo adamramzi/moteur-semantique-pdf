@@ -60,9 +60,14 @@ def init_db() -> None:
             user_id        INTEGER NOT NULL,
             nom_fichier    TEXT    NOT NULL,
             date_upload    TEXT    NOT NULL,
-            nombre_chunks  INTEGER NOT NULL DEFAULT 0
+            nombre_chunks  INTEGER NOT NULL DEFAULT 0,
+            type_fichier   TEXT    DEFAULT 'PDF'
         )
     """)
+    try:
+        cursor.execute("ALTER TABLE documents ADD COLUMN type_fichier TEXT DEFAULT 'PDF'")
+    except sqlite3.OperationalError:
+        pass  # La colonne existe déjà
 
     # ── Table recherches ────────────────────────────────────────
     cursor.execute("""
@@ -441,26 +446,122 @@ def reinitialiser_code(email: str) -> dict:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
+def generer_code_oubli_mdp(email: str) -> dict:
+    """
+    Génère un code de réinitialisation même pour un compte vérifié.
+    """
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),))
+        row = cursor.fetchone()
+
+        if row is None:
+            conn.close()
+            return {"succes": False, "erreur": "Aucun compte associé à cet e-mail."}
+
+        nouveau_code = _generer_code_verification()
+        cursor.execute(
+            "UPDATE users SET code_verification = ? WHERE email = ?",
+            (nouveau_code, email.lower().strip()),
+        )
+        conn.commit()
+        conn.close()
+        return {"succes": True, "code_verification": nouveau_code}
+    except sqlite3.Error as e:
+        return {"succes": False, "erreur": f"Erreur base de données : {e}"}
+
+
+def valider_code_oubli_mdp(email: str, code: str) -> dict:
+    """
+    Vérifie le code de réinitialisation et le consomme.
+    """
+    init_db()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT code_verification FROM users WHERE email = ?", (email.lower().strip(),))
+        row = cursor.fetchone()
+
+        if row is None:
+            conn.close()
+            return {"succes": False, "erreur": "Aucun compte associé à cet e-mail."}
+
+        if str(row["code_verification"]).strip() != str(code).strip():
+            conn.close()
+            return {"succes": False, "erreur": "Code incorrect, réessayez."}
+
+        # Vider le code
+        cursor.execute(
+            "UPDATE users SET code_verification = NULL WHERE email = ?",
+            (email.lower().strip(),)
+        )
+        conn.commit()
+        conn.close()
+        return {"succes": True}
+    except sqlite3.Error as e:
+        return {"succes": False, "erreur": f"Erreur base de données : {e}"}
+
+
+def modifier_mot_de_passe(email: str, nouveau_mot_de_passe: str) -> dict:
+    """
+    Modifie le mot de passe d'un utilisateur existant.
+
+    Args:
+        email:                L'adresse e-mail de l'utilisateur.
+        nouveau_mot_de_passe: Le nouveau mot de passe en texte clair.
+
+    Returns:
+        dict avec les clés :
+            - 'succes' (bool)
+            - 'message' (str) si succès
+            - 'erreur' (str) en cas d'échec
+    """
+    init_db()
+
+    if not email_existe(email):
+        return {"succes": False, "erreur": "Aucun compte associé à cet e-mail."}
+
+    hash_mdp = _hacher_mot_de_passe(nouveau_mot_de_passe)
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET mot_de_passe = ? WHERE email = ?",
+            (hash_mdp, email.lower().strip()),
+        )
+        conn.commit()
+        conn.close()
+        return {"succes": True, "message": "Mot de passe modifié avec succès."}
+
+    except sqlite3.Error as e:
+        return {"succes": False, "erreur": f"Erreur base de données : {e}"}
+
 
 # ──────────────────────────────────────────────────────────────
 # Fonctions historique par utilisateur
 # ──────────────────────────────────────────────────────────────
-def sauvegarder_document(user_id: int, nom_fichier: str, nombre_chunks: int) -> None:
+def sauvegarder_document(user_id: int, nom_fichier: str, nombre_chunks: int, type_fichier: str = "PDF") -> None:
     """
-    Enregistre un PDF uploadé par l'utilisateur dans la table documents.
+    Enregistre un document uploadé par l'utilisateur dans la table documents.
 
     Args:
         user_id:       L'ID de l'utilisateur connecté.
-        nom_fichier:   Le nom du fichier PDF.
-        nombre_chunks: Le nombre de passages extraits du PDF.
+        nom_fichier:   Le nom du fichier.
+        nombre_chunks: Le nombre de passages extraits.
+        type_fichier:  L'extension ou type du fichier (ex: PDF, DOCX).
     """
     init_db()
     date_upload = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO documents (user_id, nom_fichier, date_upload, nombre_chunks) VALUES (?, ?, ?, ?)",
-        (user_id, nom_fichier, date_upload, nombre_chunks),
+        "INSERT INTO documents (user_id, nom_fichier, date_upload, nombre_chunks, type_fichier) VALUES (?, ?, ?, ?, ?)",
+        (user_id, nom_fichier, date_upload, nombre_chunks, type_fichier),
     )
     conn.commit()
     conn.close()

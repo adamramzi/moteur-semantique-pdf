@@ -36,7 +36,7 @@ from database import (
     get_ip_utilisateur,
 )
 from email_service import envoyer_code_verification
-from pdf_processor import extraire_texte, decouper_chunks
+from document_processor import extraire_texte, decouper_chunks
 from vectoriser import (
     vectoriser_chunks, creer_index, sauvegarder_index, charger_index,
     rechercher_avec_metadata, get_user_index_path, get_model,
@@ -50,7 +50,7 @@ INDEX_BASE = "/tmp/index_faiss" if (os.getenv("VERCEL") or not os.access(".", os
 TOP_K = 3
 
 # ── App FastAPI ──────────────────────────────────────────────
-app = FastAPI(title="Moteur Sémantique PDF", version="2.0")
+app = FastAPI(title="Moteur Sémantique Multidocument", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -80,6 +80,14 @@ class VerifyRequest(BaseModel):
 
 class ResendRequest(BaseModel):
     email: str
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str
 
 class SearchRequest(BaseModel):
     query: str
@@ -137,7 +145,7 @@ async def register(data: RegisterRequest, request: Request):
     if len(password) < 6:
         raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 6 caractères.")
     if email_existe(email):
-        raise HTTPException(status_code=409, detail="Cette adresse e-mail est déjà utilisée.")
+        raise HTTPException(status_code=409, detail="❌ Un compte existe déjà avec cette adresse email. Veuillez vous connecter ou utiliser une autre adresse.")
 
     ip = get_ip_utilisateur(request)
     res = creer_utilisateur(email, password, ip)
@@ -175,6 +183,50 @@ async def resend(data: ResendRequest):
     raise HTTPException(status_code=500, detail=f"Envoi échoué : {msg}")
 
 
+@app.post("/api/auth/forgot-password")
+async def forgot_password(data: ForgotPasswordRequest):
+    from database import generer_code_oubli_mdp
+    from email_service import envoyer_email_reinitialisation
+
+    email = data.email.strip().lower()
+    if not email_existe(email):
+        raise HTTPException(status_code=404, detail="❌ Aucun compte trouvé avec cette adresse email")
+
+    res = generer_code_oubli_mdp(email)
+    if not res["succes"]:
+        raise HTTPException(status_code=400, detail=res.get("erreur", "Erreur lors de la génération du code"))
+
+    code = res["code_verification"]
+    succes_mail, msg = envoyer_email_reinitialisation(email, code)
+    if not succes_mail:
+        raise HTTPException(status_code=500, detail=f"L'envoi de l'e-mail a échoué : {msg}")
+
+    return {"message": "✅ Un code de réinitialisation a été envoyé à votre email"}
+
+
+@app.post("/api/auth/reset-password")
+async def reset_password(data: ResetPasswordRequest):
+    from database import valider_code_oubli_mdp, modifier_mot_de_passe
+
+    email = data.email.strip().lower()
+    code = data.code.strip()
+    new_password = data.new_password
+
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 6 caractères.")
+
+    res_verif = valider_code_oubli_mdp(email, code)
+    if not res_verif["succes"]:
+        raise HTTPException(status_code=400, detail=res_verif.get("erreur", "Code incorrect, réessayez"))
+
+    res_mod = modifier_mot_de_passe(email, new_password)
+    if not res_mod["succes"]:
+        raise HTTPException(status_code=400, detail=res_mod.get("erreur", "Erreur lors de la modification"))
+
+    return {"message": "✅ Mot de passe modifié avec succès ! Vous pouvez maintenant vous connecter."}
+
+
+
 @app.get("/api/auth/me")
 async def me(request: Request):
     user = get_current_user(request)
@@ -197,22 +249,33 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
                 fname = c.get("fichier", "unknown")
                 chunks_par_fichier.setdefault(fname, []).append(c)
 
-    nouveaux_pdfs = 0
+    nouveaux_docs = 0
     for uploaded_file in files:
         if uploaded_file.filename in chunks_par_fichier:
             continue  # Déjà indexé
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        ext = os.path.splitext(uploaded_file.filename)[1].lower()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
             content = await uploaded_file.read()
             tmp.write(content)
             tmp_path = tmp.name
 
         try:
             paragraphes = extraire_texte(tmp_path)
+            if not paragraphes:
+                continue
+            
+            # Correction du nom de fichier interne si nécessaire pour le chunks
+            for p in paragraphes:
+                p["fichier"] = uploaded_file.filename
+                
             chunks = decouper_chunks(paragraphes)
             chunks_par_fichier[uploaded_file.filename] = chunks
-            sauvegarder_document(user_id, uploaded_file.filename, len(chunks))
-            nouveaux_pdfs += 1
+            
+            # type_fichier est l'extension sans le point, majuscule (PDF, DOCX, etc)
+            type_fichier = ext.replace(".", "").upper()
+            sauvegarder_document(user_id, uploaded_file.filename, len(chunks), type_fichier=type_fichier)
+            nouveaux_docs += 1
         finally:
             os.unlink(tmp_path)
 
@@ -221,7 +284,7 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
     all_textes = [c["texte"] if isinstance(c, dict) else c for c in all_chunks]
 
     if not all_chunks:
-        raise HTTPException(status_code=400, detail="Impossible de lire le texte des fichiers PDF.")
+        raise HTTPException(status_code=400, detail="Impossible de lire le texte des fichiers uploadés.")
 
     vecteurs = vectoriser_chunks(all_textes)
     vecteurs = creer_index(vecteurs)
