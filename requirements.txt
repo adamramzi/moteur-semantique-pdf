@@ -1,9 +1,9 @@
-sentence-transformers
+fastapi
+uvicorn
+python-multipart
+PyJWT
 pymupdf
-streamlit
 numpy
 bcrypt
 python-dotenv
-streamlit-cookies-manager
-sib-api-v3-sdk
-easyocr
+requests

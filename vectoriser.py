@@ -1,23 +1,113 @@
+"""
+vectoriser.py — Embeddings et recherche sémantique
+Moteur Sémantique PDF
+
+Utilise l'API HuggingFace Inference (gratuite) pour générer les embeddings.
+Compatible Vercel (pas de PyTorch / sentence-transformers).
+"""
+
 import os
 import pickle
 import numpy as np
-from sentence_transformers import SentenceTransformer
+import requests
+import time
 
-# Charge le modèle une seule fois — all-mpnet-base-v2 est plus précis que MiniLM
-model = SentenceTransformer('all-mpnet-base-v2')
+# ── Configuration ─────────────────────────────────────────────
+HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-mpnet-base-v2"
+HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
+
+# Retry settings
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # seconds
+
+
+def _get_headers():
+    """Retourne les headers pour l'API HuggingFace."""
+    headers = {"Content-Type": "application/json"}
+    if HF_API_TOKEN:
+        headers["Authorization"] = f"Bearer {HF_API_TOKEN}"
+    return headers
+
+
+def _embed_batch(texts, batch_size=32):
+    """
+    Envoie les textes par batches à l'API HuggingFace pour obtenir les embeddings.
+    Gère le retry en cas de modèle en cours de chargement (cold start).
+
+    Args:
+        texts: Liste de chaînes de caractères.
+        batch_size: Taille des batches (défaut: 32).
+
+    Returns:
+        numpy array de shape (len(texts), embedding_dim).
+    """
+    all_embeddings = []
+    headers = _get_headers()
+
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = requests.post(
+                    HF_API_URL,
+                    headers=headers,
+                    json={"inputs": batch, "options": {"wait_for_model": True}},
+                    timeout=120,
+                )
+
+                if response.status_code == 200:
+                    embeddings = response.json()
+                    all_embeddings.extend(embeddings)
+                    break
+                elif response.status_code == 503:
+                    # Model is loading, wait and retry
+                    wait_time = RETRY_DELAY * (attempt + 1)
+                    time.sleep(wait_time)
+                else:
+                    raise Exception(
+                        f"HuggingFace API error {response.status_code}: {response.text}"
+                    )
+            except requests.exceptions.Timeout:
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(RETRY_DELAY)
+                else:
+                    raise Exception("HuggingFace API timeout after retries")
+
+    return np.array(all_embeddings, dtype=np.float32)
+
+
+def get_model():
+    """
+    Placeholder pour compatibilité.
+    L'embedding est maintenant fait via l'API, pas de modèle local.
+    Retourne un objet avec une méthode encode().
+    """
+    class HFAPIModel:
+        def encode(self, texts, convert_to_numpy=True):
+            if isinstance(texts, str):
+                texts = [texts]
+            return _embed_batch(texts)
+
+    return HFAPIModel()
 
 
 def vectoriser_chunks(chunks):
     """
-    Encode les chunks en embeddings numpy et retourne les vecteurs.
+    Encode les chunks en embeddings numpy via l'API HuggingFace.
+
+    Args:
+        chunks: Liste de chaînes de texte.
+
+    Returns:
+        numpy array de shape (n_chunks, embedding_dim).
     """
-    vecteurs = model.encode(chunks, convert_to_numpy=True)
-    return vecteurs
+    return _embed_batch(chunks)
 
 
 def creer_index(vecteurs):
     """
-    Retourne simplement les vecteurs numpy (remplace l'index FAISS).
+    Retourne simplement les vecteurs numpy (pas besoin de FAISS).
     """
     return vecteurs
 
@@ -25,8 +115,12 @@ def creer_index(vecteurs):
 def get_user_index_path(user_id: int, base: str = "index_faiss") -> str:
     """
     Retourne le chemin du dossier d'index propre à l'utilisateur.
-    Ex : index_faiss/user_42/
+    Sur Vercel, utilise /tmp pour le stockage temporaire.
+    Ex : /tmp/index_faiss/user_42/
     """
+    # Sur Vercel, utiliser /tmp (seul dossier writable)
+    if os.getenv("VERCEL"):
+        base = os.path.join("/tmp", base)
     return os.path.join(base, f"user_{user_id}")
 
 
@@ -153,4 +247,3 @@ def rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=3):
                 "fichier": "",
             })
     return resultats
-

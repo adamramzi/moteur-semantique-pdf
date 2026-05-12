@@ -17,7 +17,12 @@ import bcrypt
 # ──────────────────────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────────────────────
-DB_PATH = "users.db"
+import os as _os
+# Sur Vercel, le filesystem est read-only sauf /tmp
+if _os.getenv("VERCEL"):
+    DB_PATH = "/tmp/users.db"
+else:
+    DB_PATH = "users.db"
 
 
 # ──────────────────────────────────────────────────────────────
@@ -278,18 +283,26 @@ def valider_email(email: str, code: str) -> dict:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
-def get_ip_utilisateur() -> str:
+def get_ip_utilisateur(request=None) -> str:
     """
-    Récupère l'adresse IP de l'utilisateur via st.context.headers (Streamlit moderne).
+    Récupère l'adresse IP de l'utilisateur depuis la requête HTTP.
+
+    Args:
+        request: Objet Request FastAPI (optionnel).
 
     Returns:
         L'adresse IP sous forme de chaîne, ou 'IP inconnue' si non disponible.
     """
-    try:
-        import streamlit as st
-        return st.context.headers.get("X-Forwarded-For", "IP inconnue")
-    except Exception:
-        return "IP inconnue"
+    if request is not None:
+        try:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
+            if hasattr(request, "client") and request.client:
+                return request.client.host
+        except Exception:
+            pass
+    return "IP inconnue"
 
 
 # ──────────────────────────────────────────────────────────────

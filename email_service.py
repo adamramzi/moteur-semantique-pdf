@@ -1,8 +1,3 @@
-from dotenv import load_dotenv
-import os
-load_dotenv(override=True)
-print("API KEY:", os.getenv("BREVO_API_KEY"))
-
 """
 email_service.py — Service d'envoi d'e-mails de vérification
 Moteur Sémantique PDF
