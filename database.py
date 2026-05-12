@@ -15,7 +15,7 @@ import bcrypt
 
 
 # ──────────────────────────────────────────────────────────────
-# Configuration
+# Configuration & Turso Wrapper
 # ──────────────────────────────────────────────────────────────
 import os as _os
 _BASE_DIR = _os.path.dirname(_os.path.abspath(__file__))
@@ -24,6 +24,106 @@ if _os.getenv("VERCEL") or not _os.access(_BASE_DIR, _os.W_OK):
     DB_PATH = "/tmp/users.db"
 else:
     DB_PATH = _os.path.join(_BASE_DIR, "users.db")
+
+
+class LibsqlRow:
+    def __init__(self, description, values):
+        self._keys = [col[0] for col in description] if description else []
+        self._values = values
+
+    def __getitem__(self, item):
+        if isinstance(item, str):
+            try:
+                idx = self._keys.index(item)
+                return self._values[idx]
+            except ValueError:
+                raise KeyError(item)
+        return self._values[item]
+
+    def keys(self):
+        return self._keys
+
+    def __len__(self):
+        return len(self._values)
+
+    def __repr__(self):
+        return repr(self._values)
+        
+    def __iter__(self):
+        return iter(self._values)
+
+
+class LibsqlCursorWrapper:
+    def __init__(self, cursor):
+        self.cursor = cursor
+        self.row_factory = None
+
+    def execute(self, *args, **kwargs):
+        self.cursor.execute(*args, **kwargs)
+        return self
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if row is None:
+            return None
+        if self.row_factory == sqlite3.Row:
+            return LibsqlRow(self.cursor.description, row)
+        return row
+
+    def fetchall(self):
+        rows = self.cursor.fetchall()
+        if self.row_factory == sqlite3.Row:
+            return [LibsqlRow(self.cursor.description, r) for r in rows]
+        return rows
+
+    @property
+    def description(self):
+        return self.cursor.description
+
+    def close(self):
+        self.cursor.close()
+
+
+class LibsqlConnectionWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+        self._row_factory = None
+
+    @property
+    def row_factory(self):
+        return self._row_factory
+
+    @row_factory.setter
+    def row_factory(self, factory):
+        self._row_factory = factory
+
+    def cursor(self):
+        cursor = self.conn.cursor()
+        wrapper = LibsqlCursorWrapper(cursor)
+        wrapper.row_factory = self._row_factory
+        return wrapper
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
+
+def get_db_connection():
+    url = _os.getenv("TURSO_DATABASE_URL")
+    token = _os.getenv("TURSO_AUTH_TOKEN")
+    if url:
+        import libsql
+        if token and "authToken=" not in url:
+            sep = "&" if "?" in url else "?"
+            connection_string = f"{url}{sep}authToken={token}"
+        else:
+            connection_string = url
+        conn = libsql.connect(connection_string)
+        return LibsqlConnectionWrapper(conn)
+    else:
+        return sqlite3.connect(DB_PATH)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -38,7 +138,7 @@ def init_db() -> None:
         documents — PDFs uploadés par utilisateur
         recherches — Historique des recherches par utilisateur
     """
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # ── Table utilisateurs ──────────────────────────────────────
@@ -163,7 +263,7 @@ def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
     date_inscription = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -184,7 +284,7 @@ def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
 
 
 def verifier_utilisateur(email, mot_de_passe):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, mot_de_passe, est_verifie FROM users WHERE email = ?", (email.strip().lower(),))
     row = cursor.fetchone()
@@ -218,7 +318,7 @@ def valider_email(email: str, code: str) -> dict:
     init_db()
 
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
@@ -324,7 +424,7 @@ def creer_utilisateur_verifie(email: str, hash_mdp: str, ip: str) -> dict:
     date_inscription = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -358,7 +458,7 @@ def email_existe(email: str) -> bool:
         True si l'e-mail existe déjà, False sinon.
     """
     init_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT 1 FROM users WHERE email = ?", (email.lower().strip(),))
     existe = cursor.fetchone() is not None
@@ -383,7 +483,7 @@ def reinitialiser_code(email: str) -> dict:
     """
     init_db()
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),))
@@ -416,7 +516,7 @@ def generer_code_oubli_mdp(email: str) -> dict:
     """
     init_db()
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE email = ?", (email.lower().strip(),))
@@ -444,7 +544,7 @@ def valider_code_oubli_mdp(email: str, code: str) -> dict:
     """
     init_db()
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT code_verification FROM users WHERE email = ?", (email.lower().strip(),))
@@ -492,7 +592,7 @@ def modifier_mot_de_passe(email: str, nouveau_mot_de_passe: str) -> dict:
     hash_mdp = _hacher_mot_de_passe(nouveau_mot_de_passe)
 
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE users SET mot_de_passe = ? WHERE email = ?",
@@ -521,7 +621,7 @@ def sauvegarder_document(user_id: int, nom_fichier: str, nombre_chunks: int, typ
     """
     init_db()
     date_upload = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO documents (user_id, nom_fichier, date_upload, nombre_chunks, type_fichier) VALUES (?, ?, ?, ?, ?)",
@@ -545,7 +645,7 @@ def sauvegarder_recherche(user_id: int, nom_fichier: str, question: str,
     """
     init_db()
     date_recherche = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         """INSERT INTO recherches
@@ -568,7 +668,7 @@ def get_historique_documents(user_id: int) -> list:
         Liste de dict avec les clés : id, nom_fichier, date_upload, nombre_chunks.
     """
     init_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
@@ -592,7 +692,7 @@ def get_historique_recherches(user_id: int, nom_fichier: str) -> list:
         Liste de dict avec les clés : question, passage_trouve, score, date_recherche.
     """
     init_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
@@ -618,7 +718,7 @@ def get_user_id(email: str) -> int | None:
         L'ID (int) ou None si non trouvé.
     """
     init_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE email = ?", (email.lower().strip(),))
     row = cursor.fetchone()
@@ -635,7 +735,7 @@ def supprimer_document(user_id: int, nom_fichier: str) -> None:
         nom_fichier: Le nom du fichier PDF à supprimer.
     """
     init_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
         "DELETE FROM documents WHERE user_id = ? AND nom_fichier = ?",
@@ -674,7 +774,7 @@ def nettoyer_utilisateurs_inactifs(jours: int = 30, index_base: str = "index_fai
     import shutil
 
     init_db()
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -742,7 +842,7 @@ if __name__ == "__main__":
     else:
         print(f"[INFO] {res['erreur']}")
         # Recuperer le code existant pour le test
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
         cur.execute("SELECT code_verification FROM users WHERE email='test@exemple.com'")

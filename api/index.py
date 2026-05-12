@@ -33,7 +33,7 @@ from database import (
     sauvegarder_document, sauvegarder_recherche,
     get_historique_documents, get_historique_recherches,
     supprimer_document, nettoyer_utilisateurs_inactifs,
-    get_ip_utilisateur,
+    get_ip_utilisateur, get_db_connection,
 )
 from email_service import envoyer_code_verification
 from document_processor import extraire_texte, decouper_chunks
@@ -345,9 +345,8 @@ async def reset_all(request: Request):
     
     user_id_local = None
     if email_session:
-        import sqlite3
-        from database import DB_PATH
-        conn = sqlite3.connect(DB_PATH)
+        from database import get_db_connection
+        conn = get_db_connection()
         cursor = conn.cursor()
         # Récupérer le user_id depuis l'email
         cursor.execute("SELECT id FROM users WHERE email = ?", (email_session.strip().lower(),))
