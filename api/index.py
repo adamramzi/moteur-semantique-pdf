@@ -61,8 +61,18 @@ app.add_middleware(
 )
 
 # Init DB au démarrage
-init_db()
-nettoyer_utilisateurs_inactifs(jours=30)
+STARTUP_ERROR = None
+try:
+    init_db()
+    nettoyer_utilisateurs_inactifs(jours=30)
+except Exception as e:
+    import traceback
+    STARTUP_ERROR = traceback.format_exc()
+    print("ERREUR AU DEMARRAGE:", STARTUP_ERROR)
+
+@app.get("/api/debug")
+def debug_startup():
+    return {"startup_error": STARTUP_ERROR}
 
 
 # ── Modèles Pydantic ────────────────────────────────────────
