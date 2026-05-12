@@ -18,11 +18,12 @@ import bcrypt
 # Configuration
 # ──────────────────────────────────────────────────────────────
 import os as _os
+_BASE_DIR = _os.path.dirname(_os.path.abspath(__file__))
 # Sur Vercel, le filesystem est read-only sauf /tmp
-if _os.getenv("VERCEL") or not _os.access(".", _os.W_OK):
+if _os.getenv("VERCEL") or not _os.access(_BASE_DIR, _os.W_OK):
     DB_PATH = "/tmp/users.db"
 else:
-    DB_PATH = "users.db"
+    DB_PATH = _os.path.join(_BASE_DIR, "users.db")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -182,57 +183,20 @@ def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
-def verifier_utilisateur(email: str, mot_de_passe: str) -> dict:
-    """
-    Vérifie les identifiants d'un utilisateur.
-
-    Args:
-        email:        L'adresse e-mail de l'utilisateur.
-        mot_de_passe: Le mot de passe en texte clair.
-
-    Returns:
-        dict avec les clés :
-            - 'succes' (bool)
-            - 'utilisateur' (dict avec id, email, date_inscription, ip_address,
-              est_verifie) si succès
-            - 'erreur' (str) en cas d'échec
-    """
-    init_db()
-
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM users WHERE email = ?",
-            (email.lower().strip(),),
-        )
-        row = cursor.fetchone()
-        conn.close()
-
-        if row is None:
-            return {"succes": False, "erreur": "Aucun compte associé à cet e-mail."}
-
-        if not _verifier_hash(mot_de_passe, row["mot_de_passe"]):
-            return {"succes": False, "erreur": "Mot de passe incorrect."}
-
-        if row["est_verifie"] == 0:
-            return {
-                "succes": False,
-                "erreur": "Compte non vérifié. Veuillez entrer le code reçu par e-mail.",
-            }
-
-        utilisateur = {
-            "id":               row["id"],
-            "email":            row["email"],
-            "date_inscription": row["date_inscription"],
-            "ip_address":       row["ip_address"],
-            "est_verifie":      row["est_verifie"],
-        }
-        return {"succes": True, "utilisateur": utilisateur}
-
-    except sqlite3.Error as e:
-        return {"succes": False, "erreur": f"Erreur base de données : {e}"}
+def verifier_utilisateur(email, mot_de_passe):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, mot_de_passe, est_verifie FROM users WHERE email = ?", (email.strip().lower(),))
+    row = cursor.fetchone()
+    conn.close()
+    if row is None:
+        return False, "Aucun compte trouvé avec cette adresse email"
+    user_id, hash_mdp, est_verifie = row
+    if not est_verifie:
+        return False, "Compte non vérifié. Vérifiez votre email"
+    if bcrypt.checkpw(mot_de_passe.encode(), hash_mdp if isinstance(hash_mdp, bytes) else hash_mdp.encode()):
+        return True, user_id
+    return False, "Mot de passe incorrect"
 
 
 def valider_email(email: str, code: str) -> dict:
@@ -787,23 +751,23 @@ if __name__ == "__main__":
         code = row["code_verification"] if row else "000000"
 
     # 3. Connexion avant verification (doit echouer)
-    res = verifier_utilisateur("test@exemple.com", "monMotDePasse123")
-    print(f"[LOCK] Connexion avant verification : {res.get('erreur', 'OK')}")
+    succes, res = verifier_utilisateur("test@exemple.com", "monMotDePasse123")
+    print(f"[LOCK] Connexion avant verification : {'Succes' if succes else res}")
 
     # 4. Validation du code
-    res = valider_email("test@exemple.com", code)
-    print(f"[MAIL] Validation e-mail : {res.get('message', res.get('erreur'))}")
+    res_val = valider_email("test@exemple.com", code)
+    print(f"[MAIL] Validation e-mail : {res_val.get('message', res_val.get('erreur'))}")
 
     # 5. Connexion apres verification (doit reussir)
-    res = verifier_utilisateur("test@exemple.com", "monMotDePasse123")
-    if res["succes"]:
-        print(f"[OK] Connexion reussie : {res['utilisateur']}")
+    succes, res = verifier_utilisateur("test@exemple.com", "monMotDePasse123")
+    if succes:
+        print(f"[OK] Connexion reussie - ID : {res}")
     else:
-        print(f"[FAIL] Erreur : {res['erreur']}")
+        print(f"[FAIL] Erreur : {res}")
 
     # 6. Mauvais mot de passe
-    res = verifier_utilisateur("test@exemple.com", "mauvaisMotDePasse")
-    print(f"[KEY] Mauvais mot de passe : {res.get('erreur')}")
+    succes, res = verifier_utilisateur("test@exemple.com", "mauvaisMotDePasse")
+    print(f"[KEY] Mauvais mot de passe : {res if not succes else 'Inattendu'}")
 
     # 7. IP locale
     ip = get_ip_utilisateur()

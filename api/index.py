@@ -128,11 +128,12 @@ def get_current_user(request: Request) -> dict:
 # ── Routes Auth ─────────────────────────────────────────────
 @app.post("/api/auth/login")
 async def login(data: LoginRequest):
-    res = verifier_utilisateur(data.email.strip(), data.password)
-    if res["succes"]:
-        token = create_token(res["utilisateur"]["email"])
-        return {"token": token, "email": res["utilisateur"]["email"]}
-    raise HTTPException(status_code=401, detail=res.get("erreur", "Erreur de connexion"))
+    email_cleaned = data.email.strip().lower()
+    success, result = verifier_utilisateur(email_cleaned, data.password)
+    if success:
+        token = create_token(email_cleaned)
+        return {"token": token, "email": email_cleaned}
+    raise HTTPException(status_code=401, detail=result)
 
 
 @app.post("/api/auth/register")
