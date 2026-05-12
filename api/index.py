@@ -129,6 +129,7 @@ def get_current_user(request: Request) -> dict:
 @app.post("/api/auth/login")
 async def login(data: LoginRequest):
     email_cleaned = data.email.strip().lower()
+    print("email recherché:", email_cleaned)
     success, result = verifier_utilisateur(email_cleaned, data.password)
     if success:
         token = create_token(email_cleaned)

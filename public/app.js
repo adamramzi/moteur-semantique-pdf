@@ -71,6 +71,7 @@ $('btn-login').addEventListener('click', async () => {
     if (!email || !pwd) return toast('Remplissez tous les champs.', 'error');
     try {
         loading(true, 'Connexion…');
+        console.log("email recherché:", email);
         const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password: pwd }) });
         token = data.token; userEmail = data.email;
         localStorage.setItem('token', token); localStorage.setItem('email', userEmail);
@@ -244,14 +245,20 @@ $('btn-reset').addEventListener('click', async () => {
 async function loadDashboard() {
     try {
         const [stats, docsRes] = await Promise.all([api('/stats'), api('/documents')]);
-        $('stat-pdfs').textContent = stats.nb_pdfs;
-        $('stat-passages').textContent = stats.nb_passages;
-        $('stat-searches').textContent = stats.nb_recherches;
+        const statPdfs = $('stat-pdfs');
+        const statPassages = $('stat-passages');
+        const statSearches = $('stat-searches');
+        if (statPdfs) statPdfs.textContent = stats.nb_pdfs;
+        if (statPassages) statPassages.textContent = stats.nb_passages;
+        if (statSearches) statSearches.textContent = stats.nb_recherches;
 
         // Sidebar status
-        $('sidebar-status').innerHTML = stats.nb_passages > 0
-            ? `<div class="status-ok">✅ Prêt — <b>${stats.nb_passages}</b> passages</div>`
-            : `<div class="status-warn">⚠️ Aucun document analysé</div>`;
+        const sidebarStatus = $('sidebar-status');
+        if (sidebarStatus) {
+            sidebarStatus.innerHTML = stats.nb_passages > 0
+                ? `<div class="status-ok">✅ Prêt — <b>${stats.nb_passages}</b> passages</div>`
+                : `<div class="status-warn">⚠️ Aucun document analysé</div>`;
+        }
 
         renderHistory(docsRes.documents);
         renderSearchSection(docsRes.documents);
@@ -264,6 +271,7 @@ async function loadDashboard() {
 // ── History Section ─────────────────────────────────────────
 function renderHistory(docs) {
     const el = $('history-content');
+    if (!el) return;
     if (!docs.length) {
         el.innerHTML = `<div class="empty-state">📭 Aucun document analysé. Uploadez votre premier document ci-dessus !</div>`;
         return;
@@ -327,6 +335,7 @@ window.deleteDoc = async (name) => {
 // ── Search Section ──────────────────────────────────────────
 function renderSearchSection(docs) {
     const el = $('search-content');
+    if (!el) return;
     if (!docs.length) {
         el.innerHTML = `<div class="status-warn">⚠️ Ajoutez et analysez au moins un document avant de chercher.</div>`;
         return;
@@ -372,9 +381,12 @@ async function doSearch() {
 }
 
 function renderSidebarHistory() {
-    if (!searchHistory.length) { $('sidebar-history-section').style.display = 'none'; return; }
-    $('sidebar-history-section').style.display = 'block';
-    $('sidebar-history').innerHTML = searchHistory.map(h =>
+    const section = $('sidebar-history-section');
+    const container = $('sidebar-history');
+    if (!section || !container) return;
+    if (!searchHistory.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    container.innerHTML = searchHistory.map(h =>
         `<div class="history-item">🔍 ${h.question}<span class="history-time">${h.heure}</span></div>`
     ).join('');
 }
