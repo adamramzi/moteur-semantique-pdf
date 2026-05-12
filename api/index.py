@@ -72,7 +72,16 @@ except Exception as e:
 
 @app.get("/api/debug")
 def debug_startup():
-    return {"startup_error": STARTUP_ERROR}
+    import os
+    hf_token = os.getenv("HF_API_TOKEN", "")
+    turso_url = os.getenv("TURSO_DATABASE_URL", "")
+    
+    return {
+        "startup_error": STARTUP_ERROR,
+        "hf_token_configured": bool(hf_token),
+        "hf_token_preview": hf_token[:5] + "..." + hf_token[-4:] if len(hf_token) > 10 else hf_token,
+        "turso_url": turso_url
+    }
 
 
 # ── Modèles Pydantic ────────────────────────────────────────
