@@ -47,6 +47,7 @@ async function api(path, opts = {}) {
 }
 
 // ── Navigation ──────────────────────────────────────────────
+function goHome() { show('home-screen'); }
 function goAuth() { token = ''; userEmail = ''; localStorage.removeItem('token'); localStorage.removeItem('email'); show('auth-screen'); }
 function goDashboard() { show('dashboard-screen'); $('sidebar-email').textContent = userEmail; loadDashboard(); }
 
@@ -169,7 +170,12 @@ $('btn-resend').addEventListener('click', async () => {
 $('btn-cancel-verify').addEventListener('click', () => { show('auth-screen'); });
 
 // ── Logout ──────────────────────────────────────────────────
-$('btn-logout').addEventListener('click', () => { goAuth(); toast('Déconnecté.', 'info'); });
+$('btn-logout').addEventListener('click', () => {
+    token = ''; userEmail = '';
+    localStorage.removeItem('token'); localStorage.removeItem('email');
+    goHome();
+    toast('Déconnecté.', 'info');
+});
 
 // ── Upload Zone ─────────────────────────────────────────────
 const uploadZone = $('upload-zone');
@@ -420,9 +426,25 @@ window.exportResults = () => {
     a.click();
 };
 
+// ── Home Screen Events ──────────────────────────────────────
+$('btn-home-start').addEventListener('click', () => {
+    if (token && userEmail) {
+        goDashboard();
+    } else {
+        show('auth-screen');
+        $('tab-login').click();
+    }
+});
+
+$('home-login-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    show('auth-screen');
+    $('tab-login').click();
+});
+
 // ── Init ────────────────────────────────────────────────────
 if (token && userEmail) {
-    api('/auth/me').then(() => goDashboard()).catch(() => goAuth());
+    api('/auth/me').then(() => goDashboard()).catch(() => goHome());
 } else {
-    goAuth();
+    goHome();
 }

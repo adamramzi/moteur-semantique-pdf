@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moteur Sémantique PDF — Recherche intelligente</title>
+    <title>StudySearch — Votre assistant d'examen intelligent</title>
     <meta name="description" content="Recherche sémantique intelligente dans vos documents. Posez une question, trouvez les réponses instantanément.">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -20,9 +20,85 @@
 </div>
 
 <!-- ════════════════════════════════════════════ -->
+<!-- HOME SCREEN                                  -->
+<!-- ════════════════════════════════════════════ -->
+<div id="home-screen" class="screen active">
+    <!-- Tiny top right link for login -->
+    <a href="#" class="top-login-link" id="home-login-link">Se connecter</a>
+    
+    <div class="home-container">
+        <header class="home-header">
+            <h1 class="gradient-text home-title">📚 StudySearch — Votre assistant d'examen intelligent</h1>
+            <p class="home-subtitle">Préparez vos examens efficacement grâce à la recherche sémantique</p>
+        </header>
+
+        <!-- Section Ce que fait StudySearch -->
+        <section class="home-section">
+            <h2 class="home-section-title">✨ Ce que fait StudySearch</h2>
+            <div class="home-grid">
+                <div class="home-card glass-card">
+                    <div class="card-icon">🔍</div>
+                    <h3>Recherche intelligente</h3>
+                    <p>Posez une question en langage naturel et trouvez instantanément les passages pertinents dans vos cours</p>
+                </div>
+                <div class="home-card glass-card">
+                    <div class="card-icon">📄</div>
+                    <h3>Tous vos documents</h3>
+                    <p>Importez vos PDF, Word, PowerPoint, Excel et plus encore en un seul endroit</p>
+                </div>
+                <div class="home-card glass-card">
+                    <div class="card-icon">🎯</div>
+                    <h3>Préparé pour les étudiants</h3>
+                    <p>Conçu spécialement pour vous aider à réviser, comprendre et mémoriser vos cours</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section Objectif -->
+        <section class="home-section objective-section">
+            <h2 class="home-section-title">🎓 Objectif</h2>
+            <p class="objective-text">
+                StudySearch a été créé pour aider les étudiants à mieux préparer leurs examens. Fini les heures à chercher une information dans 200 pages de cours — posez simplement votre question et trouvez la réponse en quelques secondes.
+            </p>
+        </section>
+
+        <!-- Section Comment ça marche -->
+        <section class="home-section">
+            <h2 class="home-section-title">🚀 Comment ça marche ?</h2>
+            <div class="steps-container">
+                <div class="step-card">
+                    <div class="step-num">1️⃣</div>
+                    <h4>Créez votre compte</h4>
+                </div>
+                <div class="step-card">
+                    <div class="step-num">2️⃣</div>
+                    <h4>Importez vos cours</h4>
+                </div>
+                <div class="step-card">
+                    <div class="step-num">3️⃣</div>
+                    <h4>Posez vos questions</h4>
+                </div>
+                <div class="step-card">
+                    <div class="step-num">4️⃣</div>
+                    <h4>Révisez efficacement</h4>
+                </div>
+            </div>
+        </section>
+
+        <div class="home-cta-container">
+            <button class="btn btn-primary btn-cta" id="btn-home-start">🚀 Commencer maintenant</button>
+        </div>
+
+        <footer class="home-footer">
+            <p>© 2026 StudySearch — Projet PFE DUT Intelligence Artificielle</p>
+        </footer>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
 <!-- AUTH SCREEN                                  -->
 <!-- ════════════════════════════════════════════ -->
-<div id="auth-screen" class="screen active">
+<div id="auth-screen" class="screen">
     <div class="auth-container">
         <div class="auth-card glass-card">
             <div class="auth-logo">🔍</div>
@@ -133,7 +209,7 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div>
-            <div style="font-size:1.2rem;font-weight:700;margin-bottom:.8rem;">📚 Recherche de Documents</div>
+            <div style="font-size:1.5rem;font-weight:800;margin-bottom:.8rem;" class="gradient-text">📚 StudySearch</div>
         </div>
 
         <div class="user-card">
@@ -143,19 +219,30 @@
 
         <button class="btn btn-secondary btn-sm" id="btn-logout" style="width:100%">🚪 Se déconnecter</button>
 
+        <hr class="section-divider" style="margin: 0.8rem 0;">
+
         <div class="sidebar-section">
-            <h3>📊 Base de recherche</h3>
-            <div id="sidebar-status"></div>
+            <h3>📚 Mon Historique</h3>
+            <div id="history-content"></div>
         </div>
 
-        <div class="sidebar-section" id="sidebar-history-section" style="display:none">
-            <h3>🕐 Dernières recherches</h3>
-            <div id="sidebar-history"></div>
-        </div>
+        <hr class="section-divider" style="margin: 0.8rem 0;">
 
         <div class="sidebar-section">
             <h3>🗑️ Réinitialiser</h3>
             <button class="btn btn-danger btn-sm" id="btn-reset" style="width:100%">🗑️ Effacer tous mes documents</button>
+        </div>
+
+        <hr class="section-divider" style="margin: 0.8rem 0; margin-top: auto;">
+
+        <div class="sidebar-section" style="margin-top: auto;">
+            <h3>ℹ️ Comment ça marche ?</h3>
+            <div style="font-size: 0.8rem; color: var(--muted); line-height: 1.5; display: flex; flex-direction: column; gap: 0.4rem;">
+                <p>1️⃣ Créez votre compte</p>
+                <p>2️⃣ Importez vos cours</p>
+                <p>3️⃣ Posez vos questions</p>
+                <p>4️⃣ Révisez efficacement</p>
+            </div>
         </div>
     </aside>
 
@@ -187,14 +274,6 @@
             <div style="margin-top:1rem;display:none" id="upload-btn-container">
                 <button class="btn btn-primary" id="btn-upload" style="width:auto">⚙️ Analyser et enregistrer</button>
             </div>
-        </div>
-
-        <hr class="section-divider">
-
-        <!-- History Section -->
-        <div class="section">
-            <h2 class="section-title">📚 Mon Historique</h2>
-            <div id="history-content"></div>
         </div>
 
         <hr class="section-divider">
