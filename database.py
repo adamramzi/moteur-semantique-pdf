@@ -115,12 +115,10 @@ def get_db_connection():
     token = _os.getenv("TURSO_AUTH_TOKEN")
     if url:
         import libsql
-        if token and "authToken=" not in url:
-            sep = "&" if "?" in url else "?"
-            connection_string = f"{url}{sep}authToken={token}"
+        if token:
+            conn = libsql.connect(url, auth_token=token)
         else:
-            connection_string = url
-        conn = libsql.connect(connection_string)
+            conn = libsql.connect(url)
         return LibsqlConnectionWrapper(conn)
     else:
         return sqlite3.connect(DB_PATH)
