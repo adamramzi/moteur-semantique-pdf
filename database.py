@@ -165,8 +165,8 @@ def init_db() -> None:
     """)
     try:
         cursor.execute("ALTER TABLE documents ADD COLUMN type_fichier TEXT DEFAULT 'PDF'")
-    except sqlite3.OperationalError:
-        pass  # La colonne existe déjà
+    except Exception:
+        pass  # La colonne existe déjà, on ignore (sqlite3.OperationalError ou ValueError de libsql)
 
     # ── Table recherches ────────────────────────────────────────
     cursor.execute("""
@@ -275,9 +275,10 @@ def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
         conn.close()
         return {"succes": True, "code_verification": code}
 
-    except sqlite3.IntegrityError:
-        return {"succes": False, "erreur": "Cette adresse e-mail est déjà utilisée."}
-    except sqlite3.Error as e:
+    except Exception as e:
+        err_str = str(type(e).__name__) + " " + str(e)
+        if "IntegrityError" in err_str or "UNIQUE" in err_str or "SQLITE_CONSTRAINT" in err_str:
+            return {"succes": False, "erreur": "Cette adresse e-mail est déjà utilisée."}
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
@@ -346,7 +347,7 @@ def valider_email(email: str, code: str) -> dict:
         conn.close()
         return {"succes": True, "message": "Compte vérifié avec succès. Vous pouvez maintenant vous connecter."}
 
-    except sqlite3.Error as e:
+    except Exception as e:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
@@ -436,9 +437,10 @@ def creer_utilisateur_verifie(email: str, hash_mdp: str, ip: str) -> dict:
         conn.close()
         return {"succes": True, "message": "Compte créé et activé avec succès."}
 
-    except sqlite3.IntegrityError:
-        return {"succes": False, "erreur": "Cette adresse e-mail est déjà utilisée."}
-    except sqlite3.Error as e:
+    except Exception as e:
+        err_str = str(type(e).__name__) + " " + str(e)
+        if "IntegrityError" in err_str or "UNIQUE" in err_str or "SQLITE_CONSTRAINT" in err_str:
+            return {"succes": False, "erreur": "Cette adresse e-mail est déjà utilisée."}
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
@@ -504,7 +506,7 @@ def reinitialiser_code(email: str) -> dict:
         conn.close()
         return {"succes": True, "code_verification": nouveau_code}
 
-    except sqlite3.Error as e:
+    except Exception as e:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
@@ -532,7 +534,7 @@ def generer_code_oubli_mdp(email: str) -> dict:
         conn.commit()
         conn.close()
         return {"succes": True, "code_verification": nouveau_code}
-    except sqlite3.Error as e:
+    except Exception as e:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
@@ -564,7 +566,7 @@ def valider_code_oubli_mdp(email: str, code: str) -> dict:
         conn.commit()
         conn.close()
         return {"succes": True}
-    except sqlite3.Error as e:
+    except Exception as e:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
@@ -600,7 +602,7 @@ def modifier_mot_de_passe(email: str, nouveau_mot_de_passe: str) -> dict:
         conn.close()
         return {"succes": True, "message": "Mot de passe modifié avec succès."}
 
-    except sqlite3.Error as e:
+    except Exception as e:
         return {"succes": False, "erreur": f"Erreur base de données : {e}"}
 
 
