@@ -30,7 +30,7 @@ def _get_headers():
         )
     return {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {HF_API_TOKEN}"
+        "Authorization": f"Bearer {HF_API_TOKEN.strip()}"
     }
 
 
