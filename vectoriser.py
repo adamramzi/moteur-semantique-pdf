@@ -23,10 +23,15 @@ RETRY_DELAY = 2  # seconds
 
 def _get_headers():
     """Retourne les headers pour l'API HuggingFace."""
-    headers = {"Content-Type": "application/json"}
-    if HF_API_TOKEN:
-        headers["Authorization"] = f"Bearer {HF_API_TOKEN}"
-    return headers
+    if not HF_API_TOKEN:
+        raise ValueError(
+            "Le token d'accès Hugging Face (HF_API_TOKEN) est manquant. "
+            "Veuillez ajouter 'HF_API_TOKEN' dans vos variables d'environnement Vercel ou dans votre fichier .env !"
+        )
+    return {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {HF_API_TOKEN}"
+    }
 
 
 def _embed_batch(texts, batch_size=32):
