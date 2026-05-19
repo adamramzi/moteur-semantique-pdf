@@ -48,6 +48,8 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 INDEX_BASE = "/tmp/index_faiss" if (os.getenv("VERCEL") or not os.access(".", os.W_OK)) else "index_faiss"
 TOP_K = 3
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB par fichier
+CHUNK_READ_SIZE = 1024 * 1024     # Lire par chunks de 1 MB
 
 # ── App FastAPI ──────────────────────────────────────────────
 app = FastAPI(title="Moteur Sémantique Multidocument", version="2.0")
@@ -59,6 +61,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Middleware limite taille des requêtes (≈ 15 MB total) ────
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+MAX_REQUEST_BODY = 15 * 1024 * 1024  # 15 MB total pour la requête
+
+class LimitUploadSizeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > MAX_REQUEST_BODY:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": f"Requête trop volumineuse. Taille max : {MAX_REQUEST_BODY // (1024*1024)} MB."}
+            )
+        return await call_next(request)
+
+app.add_middleware(LimitUploadSizeMiddleware)
 
 # Init DB au démarrage
 STARTUP_ERROR = None
@@ -273,15 +294,32 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
                     chunks_par_fichier.setdefault(fname, []).append(c)
 
         nouveaux_docs = 0
+        fichiers_trop_gros = []
+
         for uploaded_file in files:
             if uploaded_file.filename in chunks_par_fichier:
                 continue  # Déjà indexé
 
             ext = os.path.splitext(uploaded_file.filename)[1].lower()
+
+            # ── Lire le fichier par chunks de 1 MB et vérifier la taille ──
+            total_size = 0
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                content = await uploaded_file.read()
-                tmp.write(content)
+                while True:
+                    chunk_data = await uploaded_file.read(CHUNK_READ_SIZE)
+                    if not chunk_data:
+                        break
+                    total_size += len(chunk_data)
+                    if total_size > MAX_FILE_SIZE:
+                        tmp.close()
+                        os.unlink(tmp.name)
+                        fichiers_trop_gros.append(uploaded_file.filename)
+                        break
+                    tmp.write(chunk_data)
                 tmp_path = tmp.name
+
+            if uploaded_file.filename in fichiers_trop_gros:
+                continue
 
             try:
                 paragraphes = extraire_texte(tmp_path)
@@ -300,7 +338,8 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
                 sauvegarder_document(user_id, uploaded_file.filename, len(chunks), type_fichier=type_fichier)
                 nouveaux_docs += 1
             finally:
-                os.unlink(tmp_path)
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
 
         # Reconstruire l'index complet
         all_chunks = [c for cl in chunks_par_fichier.values() for c in cl]
@@ -313,11 +352,16 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
         vecteurs = creer_index(vecteurs)
         sauvegarder_index(vecteurs, all_chunks, path=index_dir)
 
+        msg = f"{len(all_chunks)} passages enregistrés depuis {len(chunks_par_fichier)} fichier(s)."
+        if fichiers_trop_gros:
+            msg += f" ⚠️ Fichier(s) ignoré(s) (> 10 MB) : {', '.join(fichiers_trop_gros)}"
+
         return {
-            "message": f"{len(all_chunks)} passages enregistrés depuis {len(chunks_par_fichier)} fichier(s).",
+            "message": msg,
             "nb_pdfs": len(chunks_par_fichier),
             "nb_passages": len(all_chunks),
             "nouveaux": nouveaux_docs,
+            "fichiers_trop_gros": fichiers_trop_gros,
         }
     except Exception as error:
         print("Erreur serveur:", error)

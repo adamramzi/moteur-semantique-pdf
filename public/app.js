@@ -186,6 +186,8 @@ $('btn-logout').addEventListener('click', () => {
 });
 
 // ── Upload Zone ─────────────────────────────────────────────
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const uploadZone = $('upload-zone');
 const fileInput = $('file-input');
 
@@ -199,7 +201,12 @@ function addFiles(files) {
     const validExts = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt', '.rtf'];
     for (const f of files) {
         const ext = '.' + f.name.split('.').pop().toLowerCase();
-        if (validExts.includes(ext) && !selectedFiles.find(sf => sf.name === f.name)) selectedFiles.push(f);
+        if (!validExts.includes(ext)) continue;
+        if (f.size > MAX_FILE_SIZE_BYTES) {
+            toast(`Le fichier "${f.name}" est trop volumineux (${(f.size / (1024*1024)).toFixed(1)} MB). Maximum : ${MAX_FILE_SIZE_MB} MB.`, 'error');
+            continue;
+        }
+        if (!selectedFiles.find(sf => sf.name === f.name)) selectedFiles.push(f);
     }
     renderFileList();
 }
@@ -222,6 +229,15 @@ window.removeFile = (i) => { selectedFiles.splice(i, 1); renderFileList(); };
 // ── Upload Action ───────────────────────────────────────────
 $('btn-upload').addEventListener('click', async () => {
     if (!selectedFiles.length) return toast('Sélectionnez au moins un document.', 'error');
+
+    // Vérifier la taille avant upload
+    for (const file of selectedFiles) {
+        if (file.size > MAX_FILE_SIZE_BYTES) {
+            toast(`Le fichier "${file.name}" est trop volumineux (max ${MAX_FILE_SIZE_MB} MB). Compressez-le d'abord.`, 'error');
+            return;
+        }
+    }
+
     const fd = new FormData();
     selectedFiles.forEach(f => fd.append('files', f));
 
@@ -229,6 +245,9 @@ $('btn-upload').addEventListener('click', async () => {
         loading(true, '⏳ Analyse des documents…');
         const data = await api('/upload', { method: 'POST', body: fd });
         toast(data.message, 'success');
+        if (data.fichiers_trop_gros && data.fichiers_trop_gros.length) {
+            toast(`⚠️ Fichier(s) ignoré(s) (> ${MAX_FILE_SIZE_MB} MB) : ${data.fichiers_trop_gros.join(', ')}`, 'error');
+        }
         selectedFiles = [];
         renderFileList();
         loadDashboard();
