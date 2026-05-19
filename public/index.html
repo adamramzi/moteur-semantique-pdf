@@ -223,7 +223,7 @@
 
         <div class="sidebar-section">
             <h3>📚 Mon Historique</h3>
-            <div id="history-content"></div>
+            <div id="history-content" class="historique-scroll" style="max-height: 300px; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: #a78bfa transparent; padding-right: 6px;"></div>
         </div>
 
         <hr class="section-divider" style="margin: 0.8rem 0;">
@@ -278,10 +278,34 @@
 
         <hr class="section-divider">
 
-        <!-- Search Section -->
-        <div class="section">
-            <h2 class="section-title">🔎 Poser une question</h2>
-            <div id="search-content"></div>
+        <!-- Chat Section -->
+        <div class="section chat-wrapper">
+            <div class="chat-header">
+                <div class="mode-selector">
+                    <button class="mode-btn active" data-mode="resume" id="btn-mode-resume">
+                        📝 Mode Résumé
+                        <span class="mode-btn-desc">Génère un résumé structuré de tes documents</span>
+                    </button>
+                    <button class="mode-btn" data-mode="extrait" id="btn-mode-extrait">
+                        🔍 Mode Recherche
+                        <span class="mode-btn-desc">Trouve l'extrait qui répond à ta question</span>
+                    </button>
+                </div>
+                <button class="btn btn-sm btn-secondary" id="btn-new-chat">🗑️ Nouvelle conversation</button>
+            </div>
+            
+            <div class="chat-container" id="chat-container">
+                <div id="empty-chat-msg" class="chat-empty-state">
+                    <div class="chat-empty-icon">📂</div>
+                    <div class="chat-empty-text">Uploadez d'abord vos documents pour commencer à chatter avec vos cours !</div>
+                    <div class="chat-empty-hint">Formats supportés : PDF, Word, PowerPoint, Excel, TXT, RTF</div>
+                </div>
+            </div>
+            
+            <div class="chat-input-bar">
+                <input type="text" id="chat-input" placeholder="Posez votre question ici...">
+                <button class="btn btn-primary" id="btn-chat-send">➤</button>
+            </div>
         </div>
     </main>
 </div>

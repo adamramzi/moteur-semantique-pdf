@@ -111,6 +111,7 @@ class ResetPasswordRequest(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     pdf_name: Optional[str] = None
+    mode: Optional[str] = "resume"
 
 
 # ── Utilitaires JWT ─────────────────────────────────────────
@@ -413,6 +414,46 @@ async def search(data: SearchRequest, request: Request):
         sauvegarder_recherche(user_id, nom_pdf, query, meilleur["texte"], meilleur["score"])
 
     return {"resultats": resultats, "question": query}
+
+
+@app.post("/api/chat")
+async def chat_endpoint(data: SearchRequest, request: Request):
+    user = get_current_user(request)
+    user_id = user["user_id"]
+    index_dir = get_user_index_path(user_id, INDEX_BASE)
+
+    vecteurs, chunks = charger_index(index_dir)
+    if vecteurs is None or chunks is None:
+        raise HTTPException(status_code=400, detail="Aucun document indexé. Uploadez d'abord un PDF.")
+
+    query = data.query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Veuillez saisir une question.")
+
+    model = get_model()
+    query_vector = model.encode([query])[0]
+    resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+
+    if not resultats:
+        return {"reponse": "Aucune information trouvée dans vos documents.", "score": 0}
+
+    contexte = "\n\n".join([r["texte"] for r in resultats])
+    meilleur_score = resultats[0]["score"]
+
+    from chatbot import generer_reponse_chat
+    try:
+        reponse = generer_reponse_chat(query, contexte, data.mode)
+    except Exception as e:
+        print("Erreur Groq:", e)
+        raise HTTPException(status_code=500, detail="Erreur lors de la génération de la réponse par le chatbot.")
+
+    # Sauvegarder la recherche
+    nom_pdf = data.pdf_name or "document"
+    if resultats:
+        meilleur = resultats[0]
+        sauvegarder_recherche(user_id, nom_pdf, query, meilleur["texte"], meilleur_score)
+
+    return {"reponse": reponse, "score": meilleur_score}
 
 
 @app.get("/api/search/history/{filename}")

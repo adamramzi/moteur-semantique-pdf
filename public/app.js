@@ -340,51 +340,173 @@ window.deleteDoc = async (name) => {
 };
 
 // ── Search Section ──────────────────────────────────────────
+let chatMode = 'resume';
+let messagesChat = [];
+
 function renderSearchSection(docs) {
-    const el = $('search-content');
-    if (!el) return;
+    // Store docs reference for empty state logic
+    window._lastDocs = docs;
+    
+    const inputBar = $('chat-input');
+    const sendBtn = $('btn-chat-send');
     if (!docs.length) {
-        el.innerHTML = `<div class="status-warn">⚠️ Ajoutez et analysez au moins un document avant de chercher.</div>`;
+        if(inputBar) inputBar.disabled = true;
+        if(sendBtn) sendBtn.disabled = true;
+    } else {
+        if(inputBar) inputBar.disabled = false;
+        if(sendBtn) sendBtn.disabled = false;
+    }
+    
+    // Refresh the empty state display
+    if (messagesChat.length === 0) {
+        renderMessages();
+    }
+
+    // Set up listeners once
+    if (!window.chatListenersAdded) {
+        const btnResume = $('btn-mode-resume');
+        const btnExtrait = $('btn-mode-extrait');
+        if(btnResume) {
+            btnResume.addEventListener('click', () => {
+                chatMode = 'resume';
+                btnResume.classList.add('active');
+                btnExtrait.classList.remove('active');
+            });
+        }
+        if(btnExtrait) {
+            btnExtrait.addEventListener('click', () => {
+                chatMode = 'extrait';
+                btnExtrait.classList.add('active');
+                btnResume.classList.remove('active');
+            });
+        }
+        const btnNewChat = $('btn-new-chat');
+        if(btnNewChat) {
+            btnNewChat.addEventListener('click', () => {
+                messagesChat = [];
+                renderMessages();
+            });
+        }
+        const btnSend = $('btn-chat-send');
+        if(btnSend) {
+            btnSend.addEventListener('click', doChat);
+        }
+        const chatInput = $('chat-input');
+        if(chatInput) {
+            chatInput.addEventListener('keydown', e => {
+                if(e.key === 'Enter') doChat();
+            });
+        }
+        window.chatListenersAdded = true;
+    }
+}
+
+function renderMessages() {
+    const container = $('chat-container');
+    if (!container) return;
+    
+    // Clear the container
+    container.innerHTML = '';
+    
+    if (messagesChat.length === 0) {
+        // Show appropriate empty state
+        const hasDocs = window._lastDocs && window._lastDocs.length > 0;
+        if (!hasDocs) {
+            container.innerHTML = `<div id="empty-chat-msg" class="chat-empty-state">
+                <div class="chat-empty-icon">📂</div>
+                <div class="chat-empty-text">Uploadez d'abord vos documents pour commencer à chatter avec vos cours !</div>
+                <div class="chat-empty-hint">Formats supportés : PDF, Word, PowerPoint, Excel, TXT, RTF</div>
+            </div>`;
+        } else {
+            container.innerHTML = `<div class="chat-empty-state">
+                <div class="chat-empty-icon">💬</div>
+                <div class="chat-empty-text">Vos documents sont prêts ! Posez votre première question ci-dessous.</div>
+                <div class="chat-empty-hint">Utilisez le mode Résumé ou Recherche selon vos besoins</div>
+            </div>`;
+        }
         return;
     }
 
-    let html = `<div class="search-select"><label style="font-size:.85rem;color:var(--muted);display:block;margin-bottom:.4rem;">📄 Rechercher dans :</label>
-        <select id="search-pdf-select">`;
-    docs.forEach(d => { html += `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`; });
-    html += `</select></div>
-        <div class="search-bar">
-            <input type="text" id="search-input" placeholder="Ex : Quels sont les principaux résultats ?">
-            <button class="btn btn-primary" id="btn-search">🔍 Rechercher</button>
-        </div>
-        <div id="search-results"></div>`;
-    el.innerHTML = html;
-
-    $('btn-search').addEventListener('click', doSearch);
-    $('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    messagesChat.forEach(msg => {
+        const div = document.createElement('div');
+        if (msg.role === 'user') {
+            div.className = 'message-user';
+            div.textContent = msg.content;
+        } else {
+            div.className = 'message-bot';
+            div.innerHTML = `<span class="bot-icon">🤖</span> ${msg.content}`;
+            if (msg.meta) {
+                div.innerHTML += `<div class="mode-badge">${msg.meta}</div>`;
+            }
+        }
+        container.appendChild(div);
+    });
+    
+    container.scrollTop = container.scrollHeight;
 }
 
-async function doSearch() {
-    const query = $('search-input').value.trim();
-    const pdfSelect = $('search-pdf-select');
+async function doChat() {
+    const input = $('chat-input');
+    const query = input.value.trim();
     if (!query) return toast('Saisissez une question.', 'error');
-
+    
+    // Add user message
+    messagesChat.push({role: 'user', content: query});
+    input.value = '';
+    renderMessages();
+    
+    // Show typing indicator
+    const container = $('chat-container');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'typing-indicator';
+    typingDiv.id = 'typing-indicator';
+    typingDiv.innerHTML = '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+    container.appendChild(typingDiv);
+    container.scrollTop = container.scrollHeight;
+    
+    // Disable input while processing
+    input.disabled = true;
+    $('btn-chat-send').disabled = true;
+    
     try {
-        loading(true, '🔍 Recherche en cours…');
-        const data = await api('/search', {
+        const data = await api('/chat', {
             method: 'POST',
-            body: JSON.stringify({ query, pdf_name: pdfSelect ? pdfSelect.value : null })
+            body: JSON.stringify({ query, mode: chatMode })
         });
-
+        
+        // Remove typing indicator
+        const indicator = $('typing-indicator');
+        if (indicator) indicator.remove();
+        
+        // Add bot message
+        let metaTxt = `Mode: ${chatMode === 'resume' ? '📝 Résumé' : '🔍 Recherche'}`;
+        if (data.score) {
+            metaTxt += ` · Pertinence: ${(data.score * 100).toFixed(1)}%`;
+        }
+        
+        messagesChat.push({
+            role: 'bot', 
+            content: data.reponse,
+            meta: metaTxt
+        });
+        
         // Update sidebar history
         searchHistory.unshift({ question: query, heure: new Date().toLocaleTimeString() });
         searchHistory = searchHistory.slice(0, 5);
         renderSidebarHistory();
-
-        // Render results
-        renderResults(data.resultats, query);
+        
+        renderMessages();
         loadDashboard(); // refresh stats
-    } catch (e) { toast(e.message, 'error'); }
-    finally { loading(false); }
+    } catch(e) {
+        // Remove typing indicator on error
+        const indicator = $('typing-indicator');
+        if (indicator) indicator.remove();
+        toast(e.message, 'error');
+    } finally {
+        input.disabled = false;
+        $('btn-chat-send').disabled = false;
+        input.focus();
+    }
 }
 
 function renderSidebarHistory() {
