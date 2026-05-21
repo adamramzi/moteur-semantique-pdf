@@ -157,7 +157,7 @@ def extraire_texte(file_path):
         return []
 
 
-def decouper_chunks(paragraphes_meta, taille=100, overlap=20):
+def decouper_chunks(paragraphes_meta, taille=40, overlap=10):
     """
     Prend une liste de dictionnaires avec métadonnées, les regroupe en chunks
     de maximum 'taille' mots avec un chevauchement de 'overlap' mots.
