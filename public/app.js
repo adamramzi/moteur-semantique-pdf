@@ -6,6 +6,8 @@ let regEmail = '';
 let selectedFiles = [];
 let searchHistory = [];
 let pdfActif = '';
+let conversations = JSON.parse(localStorage.getItem('studysearch_convos') || '[]');
+let currentConvId = null;
 
 // ── Utilitaires ─────────────────────────────────────────────
 function getFileIcon(filename) {
@@ -262,70 +264,87 @@ async function loadDashboard() {
                 : `<div class="status-warn">⚠️ Aucun document analysé</div>`;
         }
 
-        renderHistory(docsRes.documents);
+        // Remplir le sélecteur de document du chat
+        const chatPdfSelect = $('chat-pdf-select');
+        if (chatPdfSelect) {
+            chatPdfSelect.innerHTML = docsRes.documents.map(d => `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`).join('');
+            if (docsRes.documents.length) {
+                if (!pdfActif || !docsRes.documents.find(d => d.nom_fichier === pdfActif)) {
+                    pdfActif = docsRes.documents[0].nom_fichier;
+                }
+                chatPdfSelect.value = pdfActif;
+            } else {
+                pdfActif = '';
+            }
+        }
+
+        // Afficher uniquement les conversations dans la barre latérale
+        renderConversations();
     } catch (e) {
         if (e.message.includes('Token') || e.message.includes('401')) goAuth();
         else toast(e.message, 'error');
     }
 }
 
-// ── History Section ─────────────────────────────────────────
-function renderHistory(docs) {
+// Configurer le changement de document ciblé
+document.addEventListener('DOMContentLoaded', () => {
+    const chatPdfSelect = $('chat-pdf-select');
+    if (chatPdfSelect) {
+        chatPdfSelect.addEventListener('change', () => {
+            pdfActif = chatPdfSelect.value;
+        });
+    }
+});
+
+// ── History Section (Gestion des Conversations) ──────────────
+function renderConversations() {
     const el = $('history-content');
     if (!el) return;
-    if (!docs.length) {
-        el.innerHTML = `<div class="empty-state">📭 Aucun document analysé. Uploadez votre premier document ci-dessus !</div>`;
+    
+    // Filtrer les conversations de l'utilisateur actuel
+    const userConvos = conversations.filter(c => c.email === userEmail);
+    
+    if (!userConvos.length) {
+        el.innerHTML = `<div class="empty-state">💬 Aucune conversation. Cliquez sur "Nouvelle conversation" pour commencer !</div>`;
         return;
     }
 
-    let html = `<p style="color:var(--muted);margin-bottom:1rem;">📂 <b>${docs.length}</b> document(s) analysé(s)</p>`;
-    html += `<div class="search-select"><select id="history-pdf-select">`;
-    docs.forEach((d, i) => { html += `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`; });
-    html += `</select></div>`;
+    let html = `<p style="color:var(--muted);margin-bottom:1rem;">💬 <b>${userConvos.length}</b> conversation(s)</p>`;
     html += `<div class="doc-grid">`;
-    docs.forEach(d => {
+    userConvos.forEach(c => {
+        const isActive = c.id === currentConvId ? ' border-color: rgba(167,139,250,0.8); background: rgba(167,139,250,0.08);' : '';
         html += `
-        <div class="doc-card">
+        <div class="doc-card" style="cursor:pointer;${isActive}" onclick="ouvrirConversation('${c.id}')">
             <div class="doc-info">
-                <h4>${getFileIcon(d.nom_fichier)} ${d.nom_fichier}</h4>
-                <div class="doc-meta">🗓️ ${d.date_upload} &nbsp;|&nbsp; 📝 <b>${d.nombre_chunks}</b> passages</div>
+                <h4>💬 ${c.nom}</h4>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.nom_fichier.replace(/'/g, "\\'")}')">🗑️</button>
+            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); supprimerConversation('${c.id}')">🗑️</button>
         </div>`;
     });
-    html += `</div><div id="search-history-results" style="margin-top:1.5rem;"></div>`;
+    html += `</div>`;
     el.innerHTML = html;
-
-    const select = $('history-pdf-select');
-    select.addEventListener('change', () => {
-        pdfActif = select.value;
-        loadSearchHistory(select.value);
-    });
-    if (docs.length) {
-        pdfActif = docs[0].nom_fichier;
-        loadSearchHistory(docs[0].nom_fichier);
-    }
 }
 
-async function loadSearchHistory(filename) {
-    try {
-        const data = await api(`/search/history/${encodeURIComponent(filename)}`);
-        const el = $('search-history-results');
-        if (!data.recherches.length) {
-            el.innerHTML = `<div class="code-hint-box">💬 Aucune recherche effectuée sur ce document.</div>`;
-            return;
-        }
-        el.innerHTML = `<h3 style="font-size:1rem;margin-bottom:.8rem;">🔎 Recherches sur : <em>${filename}</em></h3>` +
-            data.recherches.map(r => {
-                const pct = ((r.score || 0) * 100).toFixed(1);
-                const passage = (r.passage_trouve || '').substring(0, 300) + ((r.passage_trouve || '').length > 300 ? '…' : '');
-                return `<div class="search-history-card">
-                    <h4>❓ ${r.question}</h4>
-                    <div class="search-history-meta">🕐 ${r.date_recherche} &nbsp;|&nbsp; ✅ <span style="color:var(--green);font-weight:600;">${pct}%</span></div>
-                    <div class="search-history-passage">📄 ${passage}</div>
-                </div>`;
-            }).join('');
-    } catch (e) { toast(e.message, 'error'); }
+function ouvrirConversation(id) {
+    const convo = conversations.find(c => c.id === id);
+    if (!convo) return;
+    currentConvId = convo.id;
+    messagesChat = [...convo.messages];
+    
+    renderConversations();
+    renderMessages();
+}
+
+function supprimerConversation(id) {
+    if (!confirm('Supprimer cette conversation ?')) return;
+    conversations = conversations.filter(c => c.id !== id);
+    localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+    if (currentConvId === id) {
+        currentConvId = null;
+        messagesChat = [];
+        document.getElementById('chat-messages').innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>';
+    }
+    renderConversations();
 }
 
 window.deleteDoc = async (name) => {
@@ -350,8 +369,22 @@ function setMode(mode) {
 }
 
 function nouvelleConversation() {
-    messagesChat = []
-    document.getElementById('chat-messages').innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>'
+    const userConvos = conversations.filter(c => c.email === userEmail);
+    const nb = userConvos.length;
+    const newId = 'convo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const newConvo = {
+        id: newId,
+        email: userEmail,
+        nom: "Conversation " + (nb + 1),
+        messages: []
+    };
+    conversations.push(newConvo);
+    localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+    currentConvId = newId;
+    messagesChat = [];
+    
+    renderConversations();
+    renderMessages();
 }
 
 function renderMessages() {
@@ -371,13 +404,26 @@ async function doChat() {
     const input = document.getElementById('chat-input')
     const query = input.value.trim()
     if (!query) return toast('Saisissez une question.', 'error')
-    messagesChat.push({ role: 'user', content: query })
+    
+    if (!currentConvId) {
+        nouvelleConversation();
+    }
+    
+    const convo = conversations.find(c => c.id === currentConvId);
+    if (!convo) return;
+    
+    const userMsg = { role: 'user', content: query };
+    messagesChat.push(userMsg);
+    convo.messages.push(userMsg);
+    localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+    
     input.value = ''
     renderMessages()
     try {
+        let botMsg = null;
         if (chatMode === 'resume') {
             const data = await api('/chat', { method: 'POST', body: JSON.stringify({ query, mode: 'resume', pdf_name: pdfActif }) })
-            messagesChat.push({ role: 'bot', content: data.reponse, mode: 'resume', score: data.score })
+            botMsg = { role: 'bot', content: data.reponse, mode: 'resume', score: data.score };
         } else {
             const data = await api('/search', { method: 'POST', body: JSON.stringify({ query, pdf_name: pdfActif }) })
             let reponse = '<strong>🔍 Extraits pertinents :</strong><br><br>'
@@ -387,13 +433,22 @@ async function doChat() {
                     reponse += `<em>Page ${r.page || '?'}</em><br>`
                     reponse += `${r.texte}<br><br>`
                 })
-                messagesChat.push({ role: 'bot', content: reponse, mode: 'recherche', score: data.resultats[0].score })
+                botMsg = { role: 'bot', content: reponse, mode: 'recherche', score: data.resultats[0].score };
             } else {
-                messagesChat.push({ role: 'bot', content: '❌ Aucun extrait trouvé.', mode: 'recherche', score: 0 })
+                botMsg = { role: 'bot', content: '❌ Aucun extrait trouvé.', mode: 'recherche', score: 0 };
             }
         }
+        
+        if (botMsg) {
+            messagesChat.push(botMsg);
+            convo.messages.push(botMsg);
+            localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+        }
     } catch (error) {
-        messagesChat.push({ role: 'bot', content: '❌ Erreur : ' + error.message, mode: chatMode, score: 0 })
+        const errMsg = { role: 'bot', content: '❌ Erreur : ' + error.message, mode: chatMode, score: 0 };
+        messagesChat.push(errMsg);
+        convo.messages.push(errMsg);
+        localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
     }
     renderMessages()
 }

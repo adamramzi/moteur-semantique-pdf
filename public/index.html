@@ -288,8 +288,13 @@
                   <span class="mode-desc">Trouve l'extrait exact</span>
                 </button>
                 <button class="btn-new-chat" onclick="nouvelleConversation()">
-                  🗑️ Nouvelle conversation
+                  Nouvelle conversation
                 </button>
+              </div>
+
+              <div class="document-selector" style="padding: 10px 16px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 10px;">
+                  <label style="font-size: 0.85rem; color: var(--muted);">📄 Document ciblé :</label>
+                  <select id="chat-pdf-select" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text); padding: 4px 8px; font-size: 0.85rem; outline: none; flex: 1;"></select>
               </div>
 
               <!-- Messages -->
