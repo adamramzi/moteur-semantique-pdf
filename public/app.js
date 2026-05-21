@@ -5,6 +5,7 @@ let userEmail = localStorage.getItem('email') || '';
 let regEmail = '';
 let selectedFiles = [];
 let searchHistory = [];
+let pdfActif = '';
 
 // ── Utilitaires ─────────────────────────────────────────────
 function getFileIcon(filename) {
@@ -252,12 +253,6 @@ $('btn-reset').addEventListener('click', async () => {
 async function loadDashboard() {
     try {
         const [stats, docsRes] = await Promise.all([api('/stats'), api('/documents')]);
-        const statPdfs = $('stat-pdfs');
-        const statPassages = $('stat-passages');
-        const statSearches = $('stat-searches');
-        if (statPdfs) statPdfs.textContent = stats.nb_pdfs;
-        if (statPassages) statPassages.textContent = stats.nb_passages;
-        if (statSearches) statSearches.textContent = stats.nb_recherches;
 
         // Sidebar status
         const sidebarStatus = $('sidebar-status');
@@ -268,7 +263,6 @@ async function loadDashboard() {
         }
 
         renderHistory(docsRes.documents);
-        renderSearchSection(docsRes.documents);
     } catch (e) {
         if (e.message.includes('Token') || e.message.includes('401')) goAuth();
         else toast(e.message, 'error');
@@ -303,8 +297,14 @@ function renderHistory(docs) {
     el.innerHTML = html;
 
     const select = $('history-pdf-select');
-    select.addEventListener('change', () => loadSearchHistory(select.value));
-    if (docs.length) loadSearchHistory(docs[0].nom_fichier);
+    select.addEventListener('change', () => {
+        pdfActif = select.value;
+        loadSearchHistory(select.value);
+    });
+    if (docs.length) {
+        pdfActif = docs[0].nom_fichier;
+        loadSearchHistory(docs[0].nom_fichier);
+    }
 }
 
 async function loadSearchHistory(filename) {
@@ -339,111 +339,64 @@ window.deleteDoc = async (name) => {
     finally { loading(false); }
 };
 
-// ── Search Section ──────────────────────────────────────────
-function renderSearchSection(docs) {
-    const el = $('search-content');
-    if (!el) return;
-    if (!docs.length) {
-        el.innerHTML = `<div class="status-warn">⚠️ Ajoutez et analysez au moins un document avant de chercher.</div>`;
-        return;
+// ── Chat Section ────────────────────────────────────────────
+let chatMode = 'resume'
+let messagesChat = []
+
+function setMode(mode) {
+    chatMode = mode
+    document.getElementById('btn-mode-resume').classList.toggle('active', mode === 'resume')
+    document.getElementById('btn-mode-recherche').classList.toggle('active', mode === 'recherche')
+}
+
+function nouvelleConversation() {
+    messagesChat = []
+    document.getElementById('chat-messages').innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>'
+}
+
+function renderMessages() {
+    const container = document.getElementById('chat-messages')
+    if (messagesChat.length === 0) {
+        container.innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>'
+        return
     }
-
-    let html = `<div class="search-select"><label style="font-size:.85rem;color:var(--muted);display:block;margin-bottom:.4rem;">📄 Rechercher dans :</label>
-        <select id="search-pdf-select">`;
-    docs.forEach(d => { html += `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`; });
-    html += `</select></div>
-        <div class="search-bar">
-            <input type="text" id="search-input" placeholder="Ex : Quels sont les principaux résultats ?">
-            <button class="btn btn-primary" id="btn-search">🔍 Rechercher</button>
-        </div>
-        <div id="search-results"></div>`;
-    el.innerHTML = html;
-
-    $('btn-search').addEventListener('click', doSearch);
-    $('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    container.innerHTML = messagesChat.map(m => {
+        if (m.role === 'user') return `<div class="msg-user">${m.content}</div>`
+        return `<div class="msg-bot">${m.content}<div class="msg-meta">🤖 ${m.mode === 'resume' ? 'Mode Résumé' : 'Mode Recherche'} ${m.score ? '— ' + (m.score * 100).toFixed(1) + '% pertinence' : ''}</div></div>`
+    }).join('')
+    container.scrollTop = container.scrollHeight
 }
 
-async function doSearch() {
-    const query = $('search-input').value.trim();
-    const pdfSelect = $('search-pdf-select');
-    if (!query) return toast('Saisissez une question.', 'error');
-
+async function doChat() {
+    const input = document.getElementById('chat-input')
+    const query = input.value.trim()
+    if (!query) return toast('Saisissez une question.', 'error')
+    messagesChat.push({ role: 'user', content: query })
+    input.value = ''
+    renderMessages()
     try {
-        loading(true, '🔍 Recherche en cours…');
-        const data = await api('/search', {
-            method: 'POST',
-            body: JSON.stringify({ query, pdf_name: pdfSelect ? pdfSelect.value : null })
-        });
-
-        // Update sidebar history
-        searchHistory.unshift({ question: query, heure: new Date().toLocaleTimeString() });
-        searchHistory = searchHistory.slice(0, 5);
-        renderSidebarHistory();
-
-        // Render results
-        renderResults(data.resultats, query);
-        loadDashboard(); // refresh stats
-    } catch (e) { toast(e.message, 'error'); }
-    finally { loading(false); }
+        if (chatMode === 'resume') {
+            const data = await api('/chat', { method: 'POST', body: JSON.stringify({ query, mode: 'resume', pdf_name: pdfActif }) })
+            messagesChat.push({ role: 'bot', content: data.reponse, mode: 'resume', score: data.score })
+        } else {
+            const data = await api('/search', { method: 'POST', body: JSON.stringify({ query, pdf_name: pdfActif }) })
+            let reponse = '<strong>🔍 Extraits pertinents :</strong><br><br>'
+            if (data.resultats && data.resultats.length > 0) {
+                data.resultats.forEach((r, i) => {
+                    reponse += `<strong>Extrait ${i+1}</strong> — ${(r.score*100).toFixed(1)}% pertinence<br>`
+                    reponse += `<em>Page ${r.page || '?'}</em><br>`
+                    reponse += `${r.texte}<br><br>`
+                })
+                messagesChat.push({ role: 'bot', content: reponse, mode: 'recherche', score: data.resultats[0].score })
+            } else {
+                messagesChat.push({ role: 'bot', content: '❌ Aucun extrait trouvé.', mode: 'recherche', score: 0 })
+            }
+        }
+    } catch (error) {
+        messagesChat.push({ role: 'bot', content: '❌ Erreur : ' + error.message, mode: chatMode, score: 0 })
+    }
+    renderMessages()
 }
-
-function renderSidebarHistory() {
-    const section = $('sidebar-history-section');
-    const container = $('sidebar-history');
-    if (!section || !container) return;
-    if (!searchHistory.length) { section.style.display = 'none'; return; }
-    section.style.display = 'block';
-    container.innerHTML = searchHistory.map(h =>
-        `<div class="history-item">🔍 ${h.question}<span class="history-time">${h.heure}</span></div>`
-    ).join('');
-}
-
-function renderResults(results, question) {
-    const el = $('search-results');
-    if (!results || !results.length) { el.innerHTML = `<div class="empty-state">Aucun résultat trouvé.</div>`; return; }
-
-    let html = `<h3 style="margin:1rem 0;">📋 Passages trouvés pour : <em>"${question}"</em></h3>`;
-    results.forEach(r => {
-        const pct = (r.score * 100).toFixed(1);
-        const txt = r.texte.length > 600 ? r.texte.substring(0, 600) + '…' : r.texte;
-        let meta = '';
-        if (r.fichier) meta += `${getFileIcon(r.fichier)} Fichier : <b>${r.fichier}</b>`;
-        if (r.page) meta += `${meta ? ' &nbsp;|&nbsp; ' : ''}📖 Page : <b>${r.page}</b>`;
-
-        html += `<div class="result-card">
-            <div class="result-header">
-                <span class="chunk-badge">📄 Passage #${r.chunk_index + 1}</span>
-                <span class="score-badge">${pct}%</span>
-            </div>
-            <div class="result-text">${txt}</div>
-            ${meta ? `<div class="result-meta">${meta}</div>` : ''}
-        </div>`;
-    });
-
-    // Export button
-    html += `<button class="btn btn-secondary" onclick="exportResults()" style="margin-top:.5rem;">💾 Télécharger les résultats</button>`;
-    el.innerHTML = html;
-
-    // Store for export
-    window._lastResults = { results, question };
-}
-
-window.exportResults = () => {
-    const { results, question } = window._lastResults || {};
-    if (!results) return;
-    let txt = `RÉSULTATS DE RECHERCHE\nQuestion : ${question}\nDate : ${new Date().toLocaleString()}\n${'='.repeat(60)}\n\n`;
-    results.forEach(r => {
-        txt += `Passage #${r.chunk_index + 1} — ${(r.score * 100).toFixed(1)}%`;
-        if (r.fichier) txt += ` | Fichier : ${r.fichier}`;
-        if (r.page) txt += ` | Page : ${r.page}`;
-        txt += `\n${'-'.repeat(40)}\n${r.texte}\n\n`;
-    });
-    const blob = new Blob([txt], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `resultats_${Date.now()}.txt`;
-    a.click();
-};
 
 // ── Home Screen Events ──────────────────────────────────────
 $('btn-home-start').addEventListener('click', () => {

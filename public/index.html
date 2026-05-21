@@ -251,13 +251,6 @@
         <h1 class="gradient-text" style="font-size:2rem;text-align:center;font-weight:800;">🔍 Moteur de recherche sémantique Multidocument</h1>
         <p style="text-align:center;color:var(--muted);margin-bottom:1.5rem;">Posez une question et trouvez instantanément les réponses dans vos documents</p>
 
-        <!-- Stats -->
-        <div class="stats-bar">
-            <div class="stat-box"><span class="stat-number" id="stat-pdfs">0</span><span class="stat-label">📄 Documents</span></div>
-            <div class="stat-box"><span class="stat-number" id="stat-passages">0</span><span class="stat-label">📝 Passages</span></div>
-            <div class="stat-box"><span class="stat-number" id="stat-searches">0</span><span class="stat-label">🔎 Recherches</span></div>
-        </div>
-
         <!-- Upload Section -->
         <div class="section">
             <h2 class="section-title">📤 Ajouter vos documents</h2>
@@ -278,10 +271,41 @@
 
         <hr class="section-divider">
 
-        <!-- Search Section -->
+        <!-- Search Section (Zone Chat) -->
         <div class="section">
-            <h2 class="section-title">🔎 Poser une question</h2>
-            <div id="search-content"></div>
+            <h2 class="section-title">💬 Poser une question</h2>
+            <!-- Zone Chat -->
+            <div class="chat-wrapper">
+
+              <!-- Sélecteur de mode -->
+              <div class="mode-selector">
+                <button class="mode-btn active" id="btn-mode-resume" onclick="setMode('resume')">
+                  📝 Mode Résumé
+                  <span class="mode-desc">Génère un résumé structuré</span>
+                </button>
+                <button class="mode-btn" id="btn-mode-recherche" onclick="setMode('recherche')">
+                  🔍 Mode Recherche
+                  <span class="mode-desc">Trouve l'extrait exact</span>
+                </button>
+                <button class="btn-new-chat" onclick="nouvelleConversation()">
+                  🗑️ Nouvelle conversation
+                </button>
+              </div>
+
+              <!-- Messages -->
+              <div class="chat-messages" id="chat-messages">
+                <div class="chat-welcome">
+                  <p>📂 Uploadez vos documents puis posez votre question !</p>
+                </div>
+              </div>
+
+              <!-- Barre de saisie -->
+              <div class="chat-input-bar">
+                <input type="text" id="chat-input" placeholder="Posez votre question ici..." onkeydown="if(event.key==='Enter') doChat()"/>
+                <button class="btn-send" onclick="doChat()">➤</button>
+              </div>
+
+            </div>
         </div>
     </main>
 </div>
