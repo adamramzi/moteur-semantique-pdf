@@ -8,6 +8,7 @@ let searchHistory = [];
 let pdfActif = '';
 let conversations = JSON.parse(localStorage.getItem('studysearch_convos') || '[]');
 let currentConvId = null;
+let allUserDocuments = [];
 
 // ── Utilitaires ─────────────────────────────────────────────
 function getFileIcon(filename) {
@@ -202,7 +203,12 @@ function addFiles(files) {
     const validExts = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt', '.rtf'];
     for (const f of files) {
         const ext = '.' + f.name.split('.').pop().toLowerCase();
-        if (validExts.includes(ext) && !selectedFiles.find(sf => sf.name === f.name)) selectedFiles.push(f);
+        if (!validExts.includes(ext)) continue;
+        if (allUserDocuments.find(d => d.nom_fichier === f.name) || selectedFiles.find(sf => sf.name === f.name)) {
+            toast(`Le document "${f.name}" est déjà téléchargé.`, 'error');
+            continue;
+        }
+        selectedFiles.push(f);
     }
     renderFileList();
 }
@@ -225,6 +231,7 @@ window.removeFile = (i) => { selectedFiles.splice(i, 1); renderFileList(); };
 // ── Upload Action ───────────────────────────────────────────
 $('btn-upload').addEventListener('click', async () => {
     if (!selectedFiles.length) return toast('Sélectionnez au moins un document.', 'error');
+    if (!currentConvId) nouvelleConversation();
     const fd = new FormData();
     selectedFiles.forEach(f => fd.append('files', f));
 
@@ -232,6 +239,26 @@ $('btn-upload').addEventListener('click', async () => {
         loading(true, '⏳ Analyse des documents…');
         const data = await api('/upload', { method: 'POST', body: fd });
         toast(data.message, 'success');
+        
+        let conv = conversations.find(c => c.id === currentConvId);
+        if (!conv) {
+            conv = {
+                id: currentConvId,
+                email: userEmail,
+                nom: 'Conversation ' + (conversations.filter(c => c.email === userEmail).length + 1),
+                messages: [],
+                documents: [],
+                pdf_name: ""
+            };
+            conversations.push(conv);
+        }
+        if (conv) {
+            conv.documents = conv.documents || [];
+            conv.documents.push(...selectedFiles.map(f => f.name));
+            if (!pdfActif || pdfActif === "") pdfActif = selectedFiles[0].name; // Définit le premier comme actif
+            saveCurrentConversation();
+        }
+        
         selectedFiles = [];
         renderFileList();
         loadDashboard();
@@ -251,6 +278,29 @@ $('btn-reset').addEventListener('click', async () => {
     finally { loading(false); }
 });
 
+function updateDocumentDropdown() {
+    const select = $('chat-pdf-select');
+    if (!select) return;
+
+    const conv = conversations.find(c => c.id === currentConvId);
+    const convDocsNames = conv ? (conv.documents || []) : [];
+    const filteredDocs = allUserDocuments.filter(d => convDocsNames.includes(d.nom_fichier));
+
+    if (filteredDocs.length === 0) {
+        select.innerHTML = '<option value="">-- Aucun document dans cette conversation --</option>';
+        select.disabled = true;
+    } else {
+        select.innerHTML = '<option value="">-- Choisir un document --</option>' + 
+            filteredDocs.map(d => `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`).join('');
+        select.disabled = false;
+    }
+
+    if (!convDocsNames.includes(pdfActif)) {
+        pdfActif = "";
+    }
+    select.value = pdfActif;
+}
+
 // ── Dashboard Loading ───────────────────────────────────────
 async function loadDashboard() {
     try {
@@ -264,12 +314,8 @@ async function loadDashboard() {
                 : `<div class="status-warn">⚠️ Aucun document analysé</div>`;
         }
 
-        // Remplir le sélecteur de document du chat
-        const chatPdfSelect = $('chat-pdf-select');
-        if (chatPdfSelect) {
-            chatPdfSelect.innerHTML = '<option value="">-- Choisir un document --</option>' + docsRes.documents.map(d => `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`).join('');
-            chatPdfSelect.value = pdfActif;
-        }
+        allUserDocuments = docsRes.documents;
+        updateDocumentDropdown();
 
         // Afficher uniquement les conversations dans la barre latérale
         renderConversations();
@@ -312,7 +358,7 @@ function renderConversations() {
             <div class="doc-info">
                 <h4>💬 ${c.nom}</h4>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); supprimerConversation('${c.id}')">🗑️</button>
+            <button class="btn btn-danger btn-sm" style="padding: 4px 8px;" onclick="event.stopPropagation(); supprimerConversation('${c.id}')">🗑️</button>
         </div>`;
     });
     html += `</div>`;
@@ -326,7 +372,7 @@ function ouvrirConversation(id) {
     messagesChat = [...convo.messages];
     
     pdfActif = convo.pdf_name || "";
-    if ($('chat-pdf-select')) $('chat-pdf-select').value = pdfActif;
+    updateDocumentDropdown();
     
     renderConversations();
     renderMessages();
@@ -334,38 +380,61 @@ function ouvrirConversation(id) {
 
 function saveCurrentConversation() {
     if (!currentConvId) return;
-    if (messagesChat.length === 0) return;
-
     let conv = conversations.find(c => c.id === currentConvId);
+    if (messagesChat.length === 0 && (!conv || !conv.documents || conv.documents.length === 0)) return;
+
     if (!conv) {
         conv = {
             id: currentConvId,
             email: userEmail,
             nom: 'Conversation ' + (conversations.filter(c => c.email === userEmail).length + 1),
             messages: messagesChat,
+            documents: [],
             pdf_name: pdfActif
         };
         conversations.push(conv);
-        localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
-        renderConversations();
     } else {
         conv.messages = messagesChat;
         conv.pdf_name = pdfActif;
-        localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
     }
-}
-
-function supprimerConversation(id) {
-    if (!confirm('Supprimer cette conversation ?')) return;
-    conversations = conversations.filter(c => c.id !== id);
     localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
-    if (currentConvId === id) {
-        currentConvId = null;
-        messagesChat = [];
-        document.getElementById('chat-messages').innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>';
-    }
     renderConversations();
 }
+
+window.supprimerConversation = async function(id) {
+    const conv = conversations.find(c => c.id === id);
+    if (!conv) return;
+
+    if (!confirm("Supprimer cette conversation et effacer définitivement ses documents du serveur ?")) return;
+
+    try {
+        loading(true, 'Suppression de la conversation et de ses documents…');
+        const docsToDelete = conv.documents || [];
+        for (const docName of docsToDelete) {
+            try {
+                await api('/documents/' + encodeURIComponent(docName), { method: 'DELETE' });
+            } catch (err) {
+                console.error(`Erreur de suppression du document ${docName}:`, err);
+            }
+        }
+        
+        conversations = conversations.filter(c => c.id !== id);
+        localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+
+        if (currentConvId === id) {
+            currentConvId = null;
+            pdfActif = "";
+            messagesChat = [];
+            nouvelleConversation();
+        }
+        
+        await loadDashboard();
+    } catch (e) {
+        toast("Erreur lors de la suppression : " + e.message, 'error');
+    } finally {
+        loading(false);
+    }
+};
 
 window.deleteDoc = async (name) => {
     if (!confirm(`Supprimer "${name}" ?`)) return;
@@ -394,8 +463,7 @@ function nouvelleConversation() {
     pdfActif = ""; // Réinitialise le document
 
     // Réinitialisation visuelle
-    const select = $('chat-pdf-select');
-    if (select) select.value = "";
+    updateDocumentDropdown();
 
     renderMessages();
     // CRITIQUE : Ne pas push dans le tableau 'conversations' ni sauvegarder ici.
