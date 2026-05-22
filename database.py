@@ -12,6 +12,7 @@ import string
 from datetime import datetime
 
 import bcrypt
+import pickle
 
 
 # ──────────────────────────────────────────────────────────────
@@ -805,6 +806,7 @@ def nettoyer_utilisateurs_inactifs(jours: int = 30, index_base: str = "index_fai
         # Supprimer les données en base
         cursor.execute("DELETE FROM recherches WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM documents WHERE user_id = ?", (uid,))
+        cursor.execute("DELETE FROM user_indices WHERE user_id = ?", (uid,))
         cursor.execute("DELETE FROM users WHERE id = ?", (uid,))
         # Supprimer le dossier d'index sur le disque
         import os
@@ -816,6 +818,47 @@ def nettoyer_utilisateurs_inactifs(jours: int = 30, index_base: str = "index_fai
     conn.commit()
     conn.close()
     return nb_supprimes
+
+
+def sauvegarder_index_db(user_id: int, vecteurs, chunks):
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB)")
+    
+    v_blob = pickle.dumps(vecteurs)
+    c_blob = pickle.dumps(chunks)
+    
+    cursor.execute("INSERT OR REPLACE INTO user_indices (user_id, vecteurs, chunks) VALUES (?, ?, ?)", (user_id, v_blob, c_blob))
+    conn.commit()
+    conn.close()
+
+def charger_index_db(user_id: int):
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB)")
+        cursor.execute("SELECT vecteurs, chunks FROM user_indices WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return pickle.loads(row[0]), pickle.loads(row[1])
+    except Exception as e:
+        print("Erreur chargement index DB:", e)
+    return None, None
+
+def supprimer_index_db(user_id: int):
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB)")
+        cursor.execute("DELETE FROM user_indices WHERE user_id = ?", (user_id,))
+        conn.commit()
+    except Exception:
+        pass
+    conn.close()
 
 
 # ──────────────────────────────────────────────────────────────

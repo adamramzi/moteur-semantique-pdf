@@ -42,12 +42,13 @@ from database import (
     get_historique_documents, get_historique_recherches,
     supprimer_document, nettoyer_utilisateurs_inactifs,
     get_ip_utilisateur, get_db_connection,
+    sauvegarder_index_db, charger_index_db, supprimer_index_db,
 )
 from email_service import envoyer_code_verification
 from document_processor import extraire_texte, decouper_chunks
 from vectoriser import (
-    vectoriser_chunks, creer_index, sauvegarder_index, charger_index,
-    rechercher_avec_metadata, get_user_index_path, get_model,
+    vectoriser_chunks, creer_index,
+    rechercher_avec_metadata, get_model,
 )
 
 # ── Configuration ────────────────────────────────────────────
@@ -277,10 +278,9 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
     try:
         user = get_current_user(request)
         user_id = user["user_id"]
-        index_dir = get_user_index_path(user_id, INDEX_BASE)
 
         # Charger l'index existant
-        vecteurs_existants, chunks_existants = charger_index(index_dir)
+        vecteurs_existants, chunks_existants = charger_index_db(user_id)
         chunks_par_fichier = {}
         if chunks_existants:
             for c in chunks_existants:
@@ -327,7 +327,7 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
 
         vecteurs = vectoriser_chunks(all_textes)
         vecteurs = creer_index(vecteurs)
-        sauvegarder_index(vecteurs, all_chunks, path=index_dir)
+        sauvegarder_index_db(user_id, vecteurs, all_chunks)
 
         return {
             "message": f"{len(all_chunks)} passages enregistrés depuis {len(chunks_par_fichier)} fichier(s).",
@@ -356,21 +356,19 @@ async def get_documents(request: Request):
 async def delete_document(filename: str, request: Request):
     user = get_current_user(request)
     user_id = user["user_id"]
-    index_dir = get_user_index_path(user_id, INDEX_BASE)
 
     supprimer_document(user_id, filename)
 
     # Recharger et reconstruire l'index sans ce fichier
-    vecteurs_old, chunks_old = charger_index(index_dir)
+    vecteurs_old, chunks_old = charger_index_db(user_id)
     if chunks_old:
         remaining = [c for c in chunks_old if isinstance(c, dict) and c.get("fichier") != filename]
         if remaining:
             textes = [c["texte"] if isinstance(c, dict) else c for c in remaining]
             new_vecteurs = creer_index(vectoriser_chunks(textes))
-            sauvegarder_index(new_vecteurs, remaining, path=index_dir)
+            sauvegarder_index_db(user_id, new_vecteurs, remaining)
         else:
-            if os.path.exists(index_dir):
-                shutil.rmtree(index_dir)
+            supprimer_index_db(user_id)
     return {"message": f"'{filename}' supprimé avec succès."}
 
 
@@ -397,9 +395,7 @@ async def reset_all(request: Request):
         conn.close()
 
     if user_id_local:
-        index_dir = get_user_index_path(user_id_local, INDEX_BASE)
-        if os.path.exists(index_dir):
-            shutil.rmtree(index_dir)
+        supprimer_index_db(user_id_local)
 
     return {"message": "Tous vos documents ont été supprimés."}
 
@@ -409,9 +405,8 @@ async def reset_all(request: Request):
 async def search(data: SearchRequest, request: Request):
     user = get_current_user(request)
     user_id = user["user_id"]
-    index_dir = get_user_index_path(user_id, INDEX_BASE)
 
-    vecteurs, chunks = charger_index(index_dir)
+    vecteurs, chunks = charger_index_db(user_id)
     if vecteurs is None or chunks is None:
         raise HTTPException(status_code=400, detail="Les données du document ont été effacées de la mémoire du serveur. Veuillez ré-uploader ce document pour continuer.")
 
@@ -467,9 +462,8 @@ async def generate_title(data: TitleRequest, request: Request):
 async def chat(data: ChatRequest, request: Request):
     user = get_current_user(request)
     user_id = user["user_id"]
-    index_dir = get_user_index_path(user_id, INDEX_BASE)
 
-    vecteurs, chunks = charger_index(index_dir)
+    vecteurs, chunks = charger_index_db(user_id)
     if vecteurs is None or chunks is None:
         raise HTTPException(
             status_code=400,
@@ -547,10 +541,9 @@ async def search_history(filename: str, request: Request):
 async def stats(request: Request):
     user = get_current_user(request)
     user_id = user["user_id"]
-    index_dir = get_user_index_path(user_id, INDEX_BASE)
 
     docs = get_historique_documents(user_id)
-    _, chunks = charger_index(index_dir)
+    _, chunks = charger_index_db(user_id)
     nb_passages = len(chunks) if chunks else 0
 
     total_recherches = 0
