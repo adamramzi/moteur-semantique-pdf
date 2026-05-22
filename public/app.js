@@ -507,6 +507,10 @@ async function doChat() {
     
     saveCurrentConversation();
     
+    // Ajouter l'indicateur de frappe
+    messagesChat.push({ role: 'bot', content: '<div class="typing-indicator"><span></span><span></span><span></span></div>', isTyping: true });
+    renderMessages();
+    
     const convo = conversations.find(c => c.id === currentConvId);
     if (!convo) return;
     
@@ -525,38 +529,37 @@ async function doChat() {
     
     input.value = ''
     renderMessages()
+    
     try {
-        let botMsg = null;
+        let botResponse = null;
         if (chatMode === 'resume') {
-            const data = await api('/chat', { method: 'POST', body: JSON.stringify({ query, mode: 'resume', pdf_name: pdfActif }) })
-            botMsg = { role: 'bot', content: data.reponse, mode: 'resume', score: data.score };
+            const data = await api('/chat', { method: 'POST', body: JSON.stringify({ query, mode: 'resume', pdf_name: pdfActif }) });
+            botResponse = { role: 'bot', content: data.reponse, mode: 'resume', score: data.score };
         } else {
-            const data = await api('/search', { method: 'POST', body: JSON.stringify({ query, pdf_name: pdfActif }) })
-            let reponse = '<strong>🔍 Extraits pertinents :</strong><br><br>'
+            const data = await api('/search', { method: 'POST', body: JSON.stringify({ query, pdf_name: pdfActif }) });
+            let reponse = '<strong>🔍 Extraits pertinents :</strong><br><br>';
             if (data.resultats && data.resultats.length > 0) {
                 data.resultats.forEach((r, i) => {
-                    reponse += `<strong>Extrait ${i+1}</strong> — ${(r.score*100).toFixed(1)}% pertinence<br>`
-                    reponse += `<em>Page ${r.page || '?'}</em><br>`
-                    reponse += `${r.texte}<br><br>`
-                })
-                botMsg = { role: 'bot', content: reponse, mode: 'recherche', score: data.resultats[0].score };
+                    reponse += `<strong>Extrait ${i+1}</strong> — ${(r.score*100).toFixed(1)}% pertinence<br><em>Page ${r.page || '?'}</em><br>${r.texte}<br><br>`;
+                });
+                botResponse = { role: 'bot', content: reponse, mode: 'recherche', score: data.resultats[0].score };
             } else {
-                botMsg = { role: 'bot', content: '❌ Aucun extrait trouvé.', mode: 'recherche', score: 0 };
+                botResponse = { role: 'bot', content: '❌ Aucun extrait trouvé.', mode: 'recherche', score: 0 };
             }
         }
-        
-        if (botMsg) {
-            messagesChat.push(botMsg);
-            convo.messages.push(botMsg);
-            localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
-        }
+
+        // Retirer l'indicateur de frappe
+        messagesChat = messagesChat.filter(m => !m.isTyping);
+        messagesChat.push(botResponse);
+
     } catch (error) {
-        const errMsg = { role: 'bot', content: '❌ Erreur : ' + error.message, mode: chatMode, score: 0 };
-        messagesChat.push(errMsg);
-        convo.messages.push(errMsg);
-        localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+        // Retirer l'indicateur de frappe en cas d'erreur
+        messagesChat = messagesChat.filter(m => !m.isTyping);
+        messagesChat.push({ role: 'bot', content: '❌ Erreur : ' + error.message, mode: chatMode, score: 0 });
     }
-    renderMessages()
+
+    renderMessages();
+    saveCurrentConversation(); // Sauvegarder la réponse finale
 }
 
 // ── Home Screen Events ──────────────────────────────────────
