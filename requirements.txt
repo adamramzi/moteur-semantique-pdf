@@ -14,3 +14,4 @@ openpyxl
 striprtf
 libsql
 huggingface_hub
+groq

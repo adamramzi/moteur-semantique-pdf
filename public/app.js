@@ -267,15 +267,8 @@ async function loadDashboard() {
         // Remplir le sélecteur de document du chat
         const chatPdfSelect = $('chat-pdf-select');
         if (chatPdfSelect) {
-            chatPdfSelect.innerHTML = docsRes.documents.map(d => `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`).join('');
-            if (docsRes.documents.length) {
-                if (!pdfActif || !docsRes.documents.find(d => d.nom_fichier === pdfActif)) {
-                    pdfActif = docsRes.documents[0].nom_fichier;
-                }
-                chatPdfSelect.value = pdfActif;
-            } else {
-                pdfActif = '';
-            }
+            chatPdfSelect.innerHTML = '<option value="">-- Choisir un document --</option>' + docsRes.documents.map(d => `<option value="${d.nom_fichier}">${d.nom_fichier}</option>`).join('');
+            chatPdfSelect.value = pdfActif;
         }
 
         // Afficher uniquement les conversations dans la barre latérale
@@ -292,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chatPdfSelect) {
         chatPdfSelect.addEventListener('change', () => {
             pdfActif = chatPdfSelect.value;
+            saveCurrentConversation();
         });
     }
 });
@@ -331,8 +325,34 @@ function ouvrirConversation(id) {
     currentConvId = convo.id;
     messagesChat = [...convo.messages];
     
+    pdfActif = convo.pdf_name || "";
+    if ($('chat-pdf-select')) $('chat-pdf-select').value = pdfActif;
+    
     renderConversations();
     renderMessages();
+}
+
+function saveCurrentConversation() {
+    if (!currentConvId) return;
+    if (messagesChat.length === 0) return;
+
+    let conv = conversations.find(c => c.id === currentConvId);
+    if (!conv) {
+        conv = {
+            id: currentConvId,
+            email: userEmail,
+            nom: 'Conversation ' + (conversations.filter(c => c.email === userEmail).length + 1),
+            messages: messagesChat,
+            pdf_name: pdfActif
+        };
+        conversations.push(conv);
+        localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+        renderConversations();
+    } else {
+        conv.messages = messagesChat;
+        conv.pdf_name = pdfActif;
+        localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+    }
 }
 
 function supprimerConversation(id) {
@@ -369,23 +389,18 @@ function setMode(mode) {
 }
 
 function nouvelleConversation() {
-    const userConvos = conversations.filter(c => c.email === userEmail);
-    const nb = userConvos.length;
-    const newId = 'convo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    const newConvo = {
-        id: newId,
-        email: userEmail,
-        nom: "Conversation " + (nb + 1),
-        messages: []
-    };
-    conversations.push(newConvo);
-    localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
-    currentConvId = newId;
+    currentConvId = Date.now().toString(); // ID temporaire
     messagesChat = [];
-    
-    renderConversations();
+    pdfActif = ""; // Réinitialise le document
+
+    // Réinitialisation visuelle
+    const select = $('chat-pdf-select');
+    if (select) select.value = "";
+
     renderMessages();
+    // CRITIQUE : Ne pas push dans le tableau 'conversations' ni sauvegarder ici.
 }
+window.nouvelleConversation = nouvelleConversation;
 
 function renderMessages() {
     const container = document.getElementById('chat-messages')
@@ -401,6 +416,9 @@ function renderMessages() {
 }
 
 async function doChat() {
+    if (!pdfActif || pdfActif === "") {
+        return toast('Veuillez cibler un document avant de poser votre question.', 'error');
+    }
     const input = document.getElementById('chat-input')
     const query = input.value.trim()
     if (!query) return toast('Saisissez une question.', 'error')
@@ -409,13 +427,26 @@ async function doChat() {
         nouvelleConversation();
     }
     
+    const userMsg = { role: 'user', content: query };
+    messagesChat.push(userMsg);
+    
+    saveCurrentConversation();
+    
     const convo = conversations.find(c => c.id === currentConvId);
     if (!convo) return;
     
-    const userMsg = { role: 'user', content: query };
-    messagesChat.push(userMsg);
-    convo.messages.push(userMsg);
-    localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
+    let isFirstMessage = (convo && convo.nom.startsWith('Conversation '));
+    if (isFirstMessage) {
+        api('/generate-title', { method: 'POST', body: JSON.stringify({ query, pdf_name: pdfActif }) })
+            .then(res => {
+                if (res && res.titre) {
+                    convo.nom = res.titre;
+                    saveCurrentConversation();
+                    renderConversations();
+                }
+            })
+            .catch(err => console.error(err));
+    }
     
     input.value = ''
     renderMessages()

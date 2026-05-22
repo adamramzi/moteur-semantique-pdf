@@ -9,6 +9,14 @@ import tempfile
 import shutil
 from datetime import datetime, timedelta
 from typing import List, Optional
+from groq import Groq
+
+# Initialisation sécurisée du client Groq
+try:
+    groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+except Exception as e:
+    print("Erreur lors de l'initialisation du client Groq:", e)
+    groq_client = None
 
 # Ajouter le dossier parent au path pour les imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -109,6 +117,15 @@ class ResetPasswordRequest(BaseModel):
     new_password: str
 
 class SearchRequest(BaseModel):
+    query: str
+    pdf_name: Optional[str] = None
+
+class ChatRequest(BaseModel):
+    query: str
+    mode: str
+    pdf_name: Optional[str] = None
+
+class TitleRequest(BaseModel):
     query: str
     pdf_name: Optional[str] = None
 
@@ -396,7 +413,7 @@ async def search(data: SearchRequest, request: Request):
 
     vecteurs, chunks = charger_index(index_dir)
     if vecteurs is None or chunks is None:
-        raise HTTPException(status_code=400, detail="Aucun document indexé. Uploadez d'abord un PDF.")
+        raise HTTPException(status_code=400, detail="Les données du document ont été effacées de la mémoire du serveur. Veuillez ré-uploader ce document pour continuer.")
 
     query = data.query.strip()
     if not query:
@@ -413,6 +430,110 @@ async def search(data: SearchRequest, request: Request):
         sauvegarder_recherche(user_id, nom_pdf, query, meilleur["texte"], meilleur["score"])
 
     return {"resultats": resultats, "question": query}
+
+
+@app.post("/api/generate-title")
+async def generate_title(data: TitleRequest, request: Request):
+    get_current_user(request)
+    query = data.query.strip()
+    pdf_name = data.pdf_name or "document"
+    if not query:
+        raise HTTPException(status_code=400, detail="Veuillez fournir une question.")
+
+    if not groq_client:
+        words = query.split()
+        fallback_title = " ".join(words[:4]) + "..." if len(words) > 4 else query
+        return {"titre": fallback_title}
+
+    try:
+        prompt = f"Génère un titre très court (2 à 5 mots) résumant cette question sur le document '{pdf_name}'. Question : '{query}'. Ne réponds QUE par le titre, sans guillemets, sans point."
+        response = groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama3-8b-8192",
+            temperature=0.7,
+            max_tokens=30,
+        )
+        titre = response.choices[0].message.content.strip()
+        titre_nettoye = titre.replace('"', '').replace("'", "").replace("«", "").replace("»", "").strip()
+        return {"titre": titre_nettoye}
+    except Exception as e:
+        print("Erreur de génération de titre:", e)
+        words = query.split()
+        fallback_title = " ".join(words[:4]) + "..." if len(words) > 4 else query
+        return {"titre": fallback_title}
+
+
+@app.post("/api/chat")
+async def chat(data: ChatRequest, request: Request):
+    user = get_current_user(request)
+    user_id = user["user_id"]
+    index_dir = get_user_index_path(user_id, INDEX_BASE)
+
+    vecteurs, chunks = charger_index(index_dir)
+    if vecteurs is None or chunks is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Les données du document ont été effacées de la mémoire du serveur. Veuillez ré-uploader ce document pour continuer."
+        )
+
+    query = data.query.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Veuillez saisir une question.")
+
+    model = get_model()
+    query_vector = model.encode([query])[0]
+    resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+
+    if not resultats:
+        raise HTTPException(status_code=404, detail="Aucun passage pertinent trouvé dans le document.")
+
+    score_du_meilleur_chunk = resultats[0]["score"]
+
+    # Concaténer le contexte des 3 meilleurs chunks
+    cibles = resultats
+    if data.pdf_name:
+        cibles = [r for r in resultats if r.get("fichier") == data.pdf_name]
+        if not cibles:
+            cibles = resultats
+
+    contexte = "\n\n".join([f"Extrait {i+1} : {r['texte']}" for i, r in enumerate(cibles[:3])])
+
+    if not groq_client:
+        raise HTTPException(
+            status_code=500,
+            detail="Le client Groq n'est pas initialisé. Vérifiez GROQ_API_KEY."
+        )
+
+    try:
+        prompt = f"""Tu es un assistant expert chargé de répondre à des questions sur un document.
+Utilise UNIQUEMENT le contexte fourni ci-dessous pour répondre à la question de manière claire et précise.
+Si la réponse ne se trouve pas dans le contexte, dis-le poliment mais fermement, sans rien inventer.
+
+CONTEXTE :
+{contexte}
+
+QUESTION :
+{query}
+
+RÉPONSE :"""
+        response = groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama3-8b-8192",
+            temperature=0.3,
+        )
+        reponse_groq = response.choices[0].message.content.strip()
+
+        # Sauvegarder la recherche dans la DB
+        nom_pdf = data.pdf_name or "document"
+        sauvegarder_recherche(user_id, nom_pdf, query, reponse_groq, score_du_meilleur_chunk)
+
+        return {"reponse": reponse_groq, "score": float(score_du_meilleur_chunk)}
+    except Exception as e:
+        print("Erreur d'appel à Groq:", e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur du service d'IA : {str(e)}"
+        )
 
 
 @app.get("/api/search/history/{filename}")
