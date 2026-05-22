@@ -201,11 +201,14 @@ fileInput.addEventListener('change', () => addFiles(fileInput.files));
 
 function addFiles(files) {
     const validExts = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt', '.rtf'];
+    let conv = currentConvId ? conversations.find(c => c.id === currentConvId) : null;
+    let convDocs = conv ? (conv.documents || []) : [];
+
     for (const f of files) {
         const ext = '.' + f.name.split('.').pop().toLowerCase();
         if (!validExts.includes(ext)) continue;
-        if (allUserDocuments.find(d => d.nom_fichier === f.name) || selectedFiles.find(sf => sf.name === f.name)) {
-            toast(`Le document "${f.name}" est déjà téléchargé.`, 'error');
+        if (convDocs.includes(f.name) || selectedFiles.find(sf => sf.name === f.name)) {
+            toast(`Le document "${f.name}" est déjà dans cette conversation.`, 'error');
             continue;
         }
         selectedFiles.push(f);
@@ -402,19 +405,24 @@ function saveCurrentConversation() {
 }
 
 window.supprimerConversation = async function(id) {
-    const conv = conversations.find(c => c.id === id);
-    if (!conv) return;
+    const convToDelete = conversations.find(c => c.id === id);
+    if (!convToDelete) return;
 
     if (!confirm("Supprimer cette conversation et effacer définitivement ses documents du serveur ?")) return;
 
     try {
         loading(true, 'Suppression de la conversation et de ses documents…');
-        const docsToDelete = conv.documents || [];
-        for (const docName of docsToDelete) {
-            try {
-                await api('/documents/' + encodeURIComponent(docName), { method: 'DELETE' });
-            } catch (err) {
-                console.error(`Erreur de suppression du document ${docName}:`, err);
+        if (convToDelete && convToDelete.documents) {
+            for (let docName of convToDelete.documents) {
+                // Vérifier si une AUTRE conversation utilise ce même document
+                let isUsedElsewhere = conversations.some(c => c.id !== id && c.documents && c.documents.includes(docName));
+
+                if (!isUsedElsewhere) {
+                    // Suppression physique du serveur uniquement s'il est orphelin
+                    try {
+                        await api('/documents/' + encodeURIComponent(docName), { method: 'DELETE' });
+                    } catch (e) { console.error("Erreur suppression:", e); }
+                }
             }
         }
         

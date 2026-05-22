@@ -279,9 +279,6 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
         user_id = user["user_id"]
         index_dir = get_user_index_path(user_id, INDEX_BASE)
 
-        docs_existants = get_historique_documents(user_id)
-        noms_existants = [d["nom_fichier"] for d in docs_existants]
-
         # Charger l'index existant
         vecteurs_existants, chunks_existants = charger_index(index_dir)
         chunks_par_fichier = {}
@@ -293,8 +290,6 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
 
         nouveaux_docs = 0
         for uploaded_file in files:
-            if uploaded_file.filename in noms_existants:
-                raise HTTPException(status_code=400, detail=f"Le document '{uploaded_file.filename}' est déjà téléchargé.")
             if uploaded_file.filename in chunks_par_fichier:
                 continue  # Déjà indexé
 
