@@ -824,12 +824,27 @@ def sauvegarder_index_db(user_id: int, vecteurs, chunks):
     init_db()
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB)")
     
+    # Création de la table avec la colonne updated_at
+    cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB, updated_at TEXT)")
+    
+    # Sécurité : Tentative d'ajout de la colonne si la table existait déjà avec l'ancien schéma
+    try:
+        cursor.execute("ALTER TABLE user_indices ADD COLUMN updated_at TEXT")
+    except Exception:
+        pass
+        
     v_blob = pickle.dumps(vecteurs)
     c_blob = pickle.dumps(chunks)
     
-    cursor.execute("INSERT OR REPLACE INTO user_indices (user_id, vecteurs, chunks) VALUES (?, ?, ?)", (user_id, v_blob, c_blob))
+    from datetime import datetime
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Insertion incluant updated_at pour satisfaire la contrainte NOT NULL
+    cursor.execute(
+        "INSERT OR REPLACE INTO user_indices (user_id, vecteurs, chunks, updated_at) VALUES (?, ?, ?, ?)", 
+        (user_id, v_blob, c_blob, now)
+    )
     conn.commit()
     conn.close()
 
@@ -838,7 +853,7 @@ def charger_index_db(user_id: int):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB, updated_at TEXT)")
         cursor.execute("SELECT vecteurs, chunks FROM user_indices WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
         conn.close()
@@ -853,7 +868,7 @@ def supprimer_index_db(user_id: int):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS user_indices (user_id INTEGER PRIMARY KEY, vecteurs BLOB, chunks BLOB, updated_at TEXT)")
         cursor.execute("DELETE FROM user_indices WHERE user_id = ?", (user_id,))
         conn.commit()
     except Exception:
