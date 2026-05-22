@@ -623,10 +623,12 @@ def sauvegarder_document(user_id: int, nom_fichier: str, nombre_chunks: int, typ
     date_upload = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO documents (user_id, nom_fichier, date_upload, nombre_chunks, type_fichier) VALUES (?, ?, ?, ?, ?)",
-        (user_id, nom_fichier, date_upload, nombre_chunks, type_fichier),
-    )
+    cursor.execute("SELECT id FROM documents WHERE user_id = ? AND nom_fichier = ?", (user_id, nom_fichier))
+    if not cursor.fetchone():
+        cursor.execute(
+            "INSERT INTO documents (user_id, nom_fichier, date_upload, nombre_chunks, type_fichier) VALUES (?, ?, ?, ?, ?)",
+            (user_id, nom_fichier, date_upload, nombre_chunks, type_fichier),
+        )
     conn.commit()
     conn.close()
 

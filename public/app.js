@@ -201,17 +201,11 @@ fileInput.addEventListener('change', () => addFiles(fileInput.files));
 
 function addFiles(files) {
     const validExts = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt', '.rtf'];
-    let conv = currentConvId ? conversations.find(c => c.id === currentConvId) : null;
-    let convDocs = conv ? (conv.documents || []) : [];
-
     for (const f of files) {
         const ext = '.' + f.name.split('.').pop().toLowerCase();
-        if (!validExts.includes(ext)) continue;
-        if (convDocs.includes(f.name) || selectedFiles.find(sf => sf.name === f.name)) {
-            toast(`Le document "${f.name}" est déjà dans cette conversation.`, 'error');
-            continue;
+        if (validExts.includes(ext) && !selectedFiles.find(sf => sf.name === f.name)) {
+            selectedFiles.push(f);
         }
-        selectedFiles.push(f);
     }
     renderFileList();
 }
@@ -257,8 +251,13 @@ $('btn-upload').addEventListener('click', async () => {
         }
         if (conv) {
             conv.documents = conv.documents || [];
-            conv.documents.push(...selectedFiles.map(f => f.name));
-            if (!pdfActif || pdfActif === "") pdfActif = selectedFiles[0].name; // Définit le premier comme actif
+            // Ajoute uniquement si le document n'y est pas déjà
+            selectedFiles.forEach(f => {
+                if (!conv.documents.includes(f.name)) {
+                    conv.documents.push(f.name);
+                }
+            });
+            if (!pdfActif || pdfActif === "") pdfActif = selectedFiles[0].name;
             saveCurrentConversation();
         }
         
