@@ -484,9 +484,25 @@ function renderMessages() {
         return
     }
     container.innerHTML = messagesChat.map(m => {
-        if (m.role === 'user') return `<div class="msg-user">${m.content}</div>`
-        return `<div class="msg-bot">${m.content}<div class="msg-meta">🤖 ${m.mode === 'resume' ? 'Mode Résumé' : 'Mode Recherche'} ${m.score ? '— ' + (m.score * 100).toFixed(1) + '% pertinence' : ''}</div></div>`
-    }).join('')
+        if (m.role === 'user') {
+            return `<div class="msg-user">${m.content}</div>`;
+        }
+        
+        // Si c'est l'animation d'attente (typing indicator)
+        if (m.isTyping) {
+            return `<div class="msg-bot">${m.content}</div>`;
+        }
+        
+        // Si c'est une vraie réponse du bot
+        let metaText = `🤖 ${m.mode === 'resume' ? 'Mode Résumé' : 'Mode Recherche'}`;
+        
+        // On n'ajoute le score de pertinence QUE si on est en mode recherche
+        if (m.mode === 'recherche' && m.score) {
+            metaText += ` — ${(m.score * 100).toFixed(1)}% pertinence`;
+        }
+        
+        return `<div class="msg-bot">${m.content}<div class="msg-meta">${metaText}</div></div>`;
+    }).join('');
     container.scrollTop = container.scrollHeight
 }
 
