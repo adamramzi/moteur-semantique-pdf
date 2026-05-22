@@ -449,7 +449,7 @@ async def generate_title(data: TitleRequest, request: Request):
         prompt = f"Génère un titre très court (2 à 5 mots) résumant cette question sur le document '{pdf_name}'. Question : '{query}'. Ne réponds QUE par le titre, sans guillemets, sans point."
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             temperature=0.7,
             max_tokens=30,
         )
@@ -518,7 +518,7 @@ QUESTION :
 RÉPONSE :"""
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             temperature=0.3,
         )
         reponse_groq = response.choices[0].message.content.strip()
