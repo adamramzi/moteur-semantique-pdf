@@ -166,8 +166,8 @@ input::placeholder { color: var(--text-muted); opacity: 0.6; }
 
 .gemini-menu-btn {
   width: 100%;
-  background: var(--bg-hover);
-  color: var(--text-main);
+  background: transparent;
+  color: var(--text-muted);
   border: none;
   border-radius: 20px;
   padding: 10px 16px;
@@ -176,14 +176,15 @@ input::placeholder { color: var(--text-muted); opacity: 0.6; }
   cursor: pointer;
   text-align: left;
   margin-bottom: 1rem;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, color 0.2s;
   font-family: inherit;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .gemini-menu-btn:hover {
-  background-color: #333538;
+  background-color: var(--bg-hover) !important;
+  color: var(--text-main) !important;
 }
 
 .user-card {
