@@ -863,6 +863,35 @@ window.jumpToMessage = function(convId, msgIndex) {
     }, 100);
 };
 
+// ── Delete All Conversations ───────────────────────────────
+window.deleteAllConversations = function() {
+    // 1. Demander confirmation à l'utilisateur
+    if (!confirm("Êtes-vous sûr de vouloir effacer toutes vos conversations ? Cette action est irréversible.")) {
+        return;
+    }
+
+    // 2. Vider la variable globale des conversations
+    if (typeof conversations !== 'undefined') {
+        conversations = [];
+    }
+
+    // 3. Nettoyer la sauvegarde dans le navigateur
+    localStorage.removeItem('studysearch_convos');
+
+    // 4. Mettre à jour l'affichage de la barre latérale
+    if (typeof renderConversations === 'function') {
+        renderConversations();
+    }
+
+    // 5. Relancer une conversation vide au centre de l'écran
+    if (typeof nouvelleConversation === 'function') {
+        nouvelleConversation();
+    }
+
+    // Optionnel : Afficher un petit toast de succès
+    alert("Historique des conversations effacé avec succès.");
+};
+
 // ── Init ────────────────────────────────────────────────────
 // Initialiser le thème au démarrage pour éviter les scintillements
 const savedTheme = localStorage.getItem('theme');
