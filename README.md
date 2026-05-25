@@ -1,4 +1,4 @@
-# 🔍 Moteur de recherche sémantique de documents PDF
+# 🔍 StudySearch — Moteur de recherche sémantique de documents PDF
 
 Une application web qui permet de rechercher intelligemment dans vos fichiers PDF en posant des questions en langage naturel.
 Entièrement repensée pour fonctionner sur Vercel avec une architecture Serverless.

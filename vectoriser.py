@@ -1,6 +1,6 @@
 """
 vectoriser.py — Embeddings et recherche sémantique
-Moteur Sémantique PDF
+StudySearch
 
 Utilise l'API HuggingFace Inference (gratuite) pour générer les embeddings.
 Compatible Vercel (pas de PyTorch / sentence-transformers).

@@ -1,6 +1,6 @@
 """
 database.py — Gestion de la base de données utilisateurs
-Système d'authentification pour le Moteur Sémantique PDF
+Système d'authentification pour StudySearch
 
 Base de données : SQLite (users.db)
 Sécurité       : Hachage bcrypt des mots de passe

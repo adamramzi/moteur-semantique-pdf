@@ -1,5 +1,5 @@
 """
-api/index.py — FastAPI backend pour le Moteur Sémantique PDF
+api/index.py — FastAPI backend pour StudySearch
 Remplace Streamlit par une API REST + JWT
 """
 
@@ -60,7 +60,7 @@ INDEX_BASE = "/tmp/index_faiss" if (os.getenv("VERCEL") or not os.access(".", os
 TOP_K = 3
 
 # ── App FastAPI ──────────────────────────────────────────────
-app = FastAPI(title="Moteur Sémantique Multidocument", version="2.0")
+app = FastAPI(title="StudySearch", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,

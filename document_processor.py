@@ -1,6 +1,6 @@
 """
 document_processor.py — Extraction de texte et découpage en chunks
-Moteur Sémantique Multidocument
+StudySearch
 
 Supporte :
     - PDF (PyPDF)

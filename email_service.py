@@ -1,6 +1,6 @@
 """
 email_service.py — Service d'envoi d'e-mails de vérification
-Moteur Sémantique PDF
+StudySearch
 
 Utilise l'API transactionnelle Brevo (ex-Sendinblue).
 Credentials lus depuis les variables d'environnement :
@@ -43,7 +43,7 @@ def envoyer_code_verification(email_destinataire: str, code: str):
     html_content = (
         "<div style='font-family:Arial;text-align:center;padding:30px;"
         "background:#1a1a2e;color:white;border-radius:15px'>"
-        "<h2 style='color:#a78bfa'>Moteur Sémantique PDF</h2>"
+        "<h2 style='color:#a78bfa'>StudySearch</h2>"
         "<p>Votre code de vérification est :</p>"
         f"<h1 style='color:#34d399;font-size:50px;letter-spacing:10px'>{code}</h1>"
         "<p style='color:#94a3b8'>Ce code expire dans 10 minutes.</p>"
@@ -51,9 +51,9 @@ def envoyer_code_verification(email_destinataire: str, code: str):
     )
 
     payload = {
-        "sender": {"name": "Moteur PDF", "email": email_sender},
+        "sender": {"name": "StudySearch", "email": email_sender},
         "to": [{"email": email_destinataire}],
-        "subject": "Code de vérification - Moteur PDF",
+        "subject": "Code de vérification - StudySearch",
         "htmlContent": html_content,
     }
 
@@ -95,7 +95,7 @@ def envoyer_email_reinitialisation(email_destinataire: str, code: str):
     html_content = (
         "<div style='font-family:Arial;text-align:center;padding:30px;"
         "background:#1a1a2e;color:white;border-radius:15px'>"
-        "<h2 style='color:#a78bfa'>Moteur Sémantique PDF</h2>"
+        "<h2 style='color:#a78bfa'>StudySearch</h2>"
         "<p>Votre code de réinitialisation de mot de passe est :</p>"
         f"<h1 style='color:#f43f5e;font-size:50px;letter-spacing:10px'>{code}</h1>"
         "<p style='color:#94a3b8'>Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet e-mail.</p>"
@@ -103,9 +103,9 @@ def envoyer_email_reinitialisation(email_destinataire: str, code: str):
     )
 
     payload = {
-        "sender": {"name": "Moteur PDF", "email": email_sender},
+        "sender": {"name": "StudySearch", "email": email_sender},
         "to": [{"email": email_destinataire}],
-        "subject": "Réinitialisation de mot de passe - Moteur PDF",
+        "subject": "Réinitialisation de mot de passe - StudySearch",
         "htmlContent": html_content,
     }
 
