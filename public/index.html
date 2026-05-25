@@ -242,13 +242,12 @@
             <div class="gemini-user-info">
                 <span id="user-name-display">Utilisateur</span>
             </div>
-            <button id="btn-logout-icon" class="gemini-icon-btn" onclick="logout()" title="Se déconnecter">⚙️</button>
+            <button id="btn-logout-icon" class="gemini-icon-btn" onclick="openSettingsModal()" title="Paramètres">⚙️</button>
         </div>
     </aside>
 
     <!-- Main Content -->
     <main class="main-content">
-        <button id="btn-open-sidebar" class="icon-btn" style="display:none;">☰</button>
         <h1 class="gradient-text" style="font-size:2rem;text-align:center;font-weight:800;margin-top:1rem;">🔍 Moteur de recherche sémantique Multidocument</h1>
         <p style="text-align:center;color:var(--text-muted);margin-bottom:1.5rem;">Posez une question et trouvez instantanément les réponses dans vos documents</p>
 
@@ -274,7 +273,10 @@
 
         <!-- Search Section (Zone Chat) -->
         <div class="section">
-            <h2 class="section-title">💬 Poser une question</h2>
+            <div class="chat-header">
+                <button id="btn-open-sidebar" class="gemini-icon-btn" style="display:none;">☰</button>
+                <h2 class="section-title" style="margin: 0;">💬 Poser une question</h2>
+            </div>
             <!-- Zone Chat -->
             <div class="chat-wrapper">
 
@@ -311,6 +313,36 @@
             </div>
         </div>
     </main>
+</div>
+
+<div id="settings-modal" class="modal hidden">
+    <div class="modal-content settings-content">
+        <div class="modal-header">
+            <h2>⚙️ Paramètres</h2>
+            <button class="icon-btn" onclick="closeSettingsModal()">✖</button>
+        </div>
+
+        <div class="settings-section">
+            <h3>Mon Compte</h3>
+            <p><strong>Nom :</strong> <span id="settings-name"></span></p>
+            <p><strong>Email :</strong> <span id="settings-email"></span></p>
+            <div class="settings-actions" style="display: flex; gap: 10px; margin-top: 15px;">
+                <button class="gemini-menu-btn" onclick="logout()" style="margin-bottom: 0;">Se déconnecter</button>
+                <button class="gemini-menu-btn text-danger" onclick="deleteAccount()" style="margin-bottom: 0;">Supprimer mon compte</button>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h3>Apparence</h3>
+            <button class="gemini-menu-btn" onclick="toggleTheme()">🌓 Basculer Thème (Clair/Sombre)</button>
+        </div>
+
+        <div class="settings-section">
+            <h3>Rechercher dans l'historique</h3>
+            <input type="text" id="search-history-input" placeholder="Chercher une question ou un titre..." oninput="searchHistory()" />
+            <div id="search-history-results" style="max-height: 200px; overflow-y: auto; margin-top: 10px;"></div>
+        </div>
+    </div>
 </div>
 
 <script src="/app.js"></script>

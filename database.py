@@ -882,6 +882,21 @@ def supprimer_index_db(user_id: int):
     conn.close()
 
 
+def supprimer_utilisateur_complet(user_id: int) -> None:
+    init_db()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        cursor.execute("DELETE FROM documents WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM user_indices WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM recherches WHERE user_id = ?", (user_id,))
+        conn.commit()
+    except Exception as e:
+        print("Erreur suppression utilisateur complet:", e)
+    conn.close()
+
+
 # ──────────────────────────────────────────────────────────────
 # Point d'entrée — test rapide en ligne de commande
 # ──────────────────────────────────────────────────────────────

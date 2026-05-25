@@ -99,6 +99,7 @@ $('btn-login').addEventListener('click', async () => {
         token = data.token; userEmail = data.email;
         localStorage.setItem('token', token); localStorage.setItem('email', userEmail);
         localStorage.setItem('userName', data.nom_complet || 'Utilisateur');
+        localStorage.setItem('userEmail', data.email || userEmail);
         toast('Connexion réussie !', 'success');
         updateUserProfile();
         goDashboard();
@@ -328,6 +329,12 @@ function updateDocumentDropdown() {
 
 // ── Dashboard Loading ───────────────────────────────────────
 async function loadDashboard() {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+    } else {
+        document.body.classList.remove('light-mode');
+    }
     updateUserProfile();
     try {
         const [stats, docsRes] = await Promise.all([api('/stats'), api('/documents')]);
@@ -601,14 +608,14 @@ function renderMessages() {
         container.innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>'
         return
     }
-    container.innerHTML = messagesChat.map(m => {
+    container.innerHTML = messagesChat.map((m, index) => {
         if (m.role === 'user') {
-            return `<div class="msg-user">${m.content}</div>`;
+            return `<div class="msg-user" id="msg-${index}">${m.content}</div>`;
         }
         
         // Si c'est l'animation d'attente (typing indicator)
         if (m.isTyping) {
-            return `<div class="msg-bot">${m.content}</div>`;
+            return `<div class="msg-bot" id="msg-${index}">${m.content}</div>`;
         }
         
         // Si c'est une vraie réponse du bot
@@ -619,7 +626,7 @@ function renderMessages() {
             metaText += ` — ${(m.score * 100).toFixed(1)}% pertinence`;
         }
         
-        return `<div class="msg-bot">${m.content}<div class="msg-meta">${metaText}</div></div>`;
+        return `<div class="msg-bot" id="msg-${index}">${m.content}<div class="msg-meta">${metaText}</div></div>`;
     }).join('');
     container.scrollTop = container.scrollHeight
 }
@@ -712,7 +719,138 @@ $('home-login-link').addEventListener('click', (e) => {
     $('tab-login').click();
 });
 
+// ── Settings Modal ──────────────────────────────────────────
+window.openSettingsModal = function() {
+    const name = localStorage.getItem('userName') || 'Utilisateur';
+    const email = localStorage.getItem('userEmail') || userEmail || 'Non spécifié';
+    const nameEl = document.getElementById('settings-name');
+    const emailEl = document.getElementById('settings-email');
+    if (nameEl) nameEl.textContent = name;
+    if (emailEl) emailEl.textContent = email;
+
+    // Reset/clear history search input and results on open
+    const searchInput = document.getElementById('search-history-input');
+    const searchResults = document.getElementById('search-history-results');
+    if (searchInput) searchInput.value = '';
+    if (searchResults) searchResults.innerHTML = '';
+
+    const modal = document.getElementById('settings-modal');
+    if (modal) modal.classList.remove('hidden');
+};
+
+window.closeSettingsModal = function() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) modal.classList.add('hidden');
+};
+
+// ── Theme Management ────────────────────────────────────────
+window.toggleTheme = function() {
+    document.body.classList.toggle('light-mode');
+    localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+};
+
+// ── Account Deletion ────────────────────────────────────────
+window.deleteAccount = async function() {
+    if (!confirm("Êtes-vous sûr de vouloir supprimer définitivement votre compte et vos documents ?")) return;
+    try {
+        loading(true, 'Suppression du compte…');
+        const res = await fetch('/api/user', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(data.detail || 'Erreur lors de la suppression du compte');
+        }
+        toast('Votre compte a été supprimé avec succès.', 'success');
+        logout();
+    } catch (e) {
+        toast(e.message, 'error');
+    } finally {
+        loading(false);
+    }
+};
+
+// ── History Search ──────────────────────────────────────────
+window.searchHistory = function() {
+    const input = document.getElementById('search-history-input');
+    const resultsDiv = document.getElementById('search-history-results');
+    if (!input || !resultsDiv) return;
+
+    const query = input.value.trim().toLowerCase();
+    if (!query) {
+        resultsDiv.innerHTML = '';
+        return;
+    }
+
+    let resultsHtml = '';
+    const userConvos = conversations.filter(c => c.email === userEmail);
+
+    userConvos.forEach(conv => {
+        const titleMatches = conv.nom && conv.nom.toLowerCase().includes(query);
+        let matches = [];
+
+        if (conv.messages) {
+            conv.messages.forEach((msg, idx) => {
+                if (msg.role === 'user') {
+                    if (msg.content && msg.content.toLowerCase().includes(query)) {
+                        matches.push({ index: idx, content: msg.content });
+                    }
+                }
+            });
+        }
+
+        // Si le titre matche mais qu'aucun message ne matche spécifiquement
+        if (titleMatches && matches.length === 0) {
+            const firstUserMsgIdx = conv.messages ? conv.messages.findIndex(m => m.role === 'user') : -1;
+            if (firstUserMsgIdx !== -1) {
+                matches.push({ index: firstUserMsgIdx, content: conv.messages[firstUserMsgIdx].content });
+            } else if (conv.messages && conv.messages.length > 0) {
+                matches.push({ index: 0, content: conv.messages[0].content });
+            }
+        }
+
+        matches.forEach(match => {
+            const contentDisplay = match.content.length > 100 ? match.content.substring(0, 100) + '...' : match.content;
+            resultsHtml += `
+            <div class="search-result-item" onclick="jumpToMessage('${conv.id}', ${match.index})">
+                <div class="search-result-title">💬 ${conv.nom}</div>
+                <div class="search-result-text">${contentDisplay}</div>
+            </div>`;
+        });
+    });
+
+    if (!resultsHtml) {
+        resultsDiv.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:0.9rem; text-align:center;">Aucun résultat</div>';
+    } else {
+        resultsDiv.innerHTML = resultsHtml;
+    }
+};
+
+// ── Navigation & Jump to Message ───────────────────────────
+window.jumpToMessage = function(convId, msgIndex) {
+    window.closeSettingsModal();
+    ouvrirConversation(convId);
+    setTimeout(() => {
+        const target = document.getElementById('msg-' + msgIndex);
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            target.classList.remove('highlight-msg');
+            void target.offsetWidth; // Force reflow to restart animation if clicked again
+            target.classList.add('highlight-msg');
+        }
+    }, 100);
+};
+
 // ── Init ────────────────────────────────────────────────────
+// Initialiser le thème au démarrage pour éviter les scintillements
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'light') {
+    document.body.classList.add('light-mode');
+}
+
 if (token && userEmail) {
     api('/auth/me').then(() => goDashboard()).catch(() => goHome());
 } else {

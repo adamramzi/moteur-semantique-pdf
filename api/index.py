@@ -43,6 +43,7 @@ from database import (
     supprimer_document, nettoyer_utilisateurs_inactifs,
     get_ip_utilisateur, get_db_connection,
     sauvegarder_index_db, charger_index_db, supprimer_index_db,
+    supprimer_utilisateur_complet,
 )
 from email_service import envoyer_code_verification
 from document_processor import extraire_texte, decouper_chunks
@@ -274,6 +275,12 @@ async def reset_password(data: ResetPasswordRequest):
 async def me(request: Request):
     user = get_current_user(request)
     return {"email": user["email"], "user_id": user["user_id"]}
+
+
+@app.delete("/api/user")
+def delete_user(current_user = Depends(get_current_user)):
+    supprimer_utilisateur_complet(current_user["user_id"])
+    return {"message": "Compte supprimé avec succès"}
 
 
 # ── Routes Documents ────────────────────────────────────────
