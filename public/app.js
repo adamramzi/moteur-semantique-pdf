@@ -794,73 +794,102 @@ window.deleteAccount = async function() {
 
 // ── History Search ──────────────────────────────────────────
 window.searchHistory = function() {
-    const input = document.getElementById('search-history-input');
-    const resultsDiv = document.getElementById('search-history-results');
-    if (!input || !resultsDiv) return;
+    const inputEl = document.getElementById('search-history-input');
+    const resultsContainer = document.getElementById('search-history-results');
+    
+    if (!inputEl || !resultsContainer) return;
 
-    const query = input.value.trim().toLowerCase();
-    if (!query) {
-        resultsDiv.innerHTML = '';
+    const query = inputEl.value.trim().toLowerCase();
+    resultsContainer.innerHTML = ''; // Nettoyer les anciens résultats
+
+    if (query.length === 0) return;
+
+    // 1. Lire directement depuis le localStorage pour éviter les erreurs de variables globales
+    let convs = [];
+    try {
+        const stored = localStorage.getItem('studysearch_convos'); 
+        if (stored) convs = JSON.parse(stored);
+    } catch (e) {
+        console.error("Erreur de lecture de l'historique", e);
         return;
     }
 
-    let resultsHtml = '';
-    const userConvos = conversations.filter(c => c.email === userEmail);
+    let foundCount = 0;
 
-    userConvos.forEach(conv => {
-        const titleMatches = conv.nom && conv.nom.toLowerCase().includes(query);
-        let matches = [];
+    // 2. Parcourir toutes les conversations de l'utilisateur connecté
+    convs.forEach(conv => {
+        if (conv.email !== userEmail) return;
 
-        if (conv.messages) {
-            conv.messages.forEach((msg, idx) => {
-                if (msg.role === 'user') {
-                    if (msg.content && msg.content.toLowerCase().includes(query)) {
-                        matches.push({ index: idx, content: msg.content });
-                    }
+        const titleMatch = conv.nom && conv.nom.toLowerCase().includes(query);
+        let messageMatchIndex = -1;
+        let matchingText = "";
+
+        // 3. Parcourir les messages de la conversation (en gérant content ou text)
+        if (conv.messages && Array.isArray(conv.messages)) {
+            for (let i = 0; i < conv.messages.length; i++) {
+                const msg = conv.messages[i];
+                const textContent = msg.content || msg.text || ""; // Gère les deux formats habituels
+                
+                // On cherche uniquement dans les messages de l'utilisateur
+                if ((msg.role === 'user' || msg.sender === 'user' || !msg.role) && textContent.toLowerCase().includes(query)) {
+                    messageMatchIndex = i;
+                    matchingText = textContent;
+                    break; // On s'arrête au premier message correspondant dans cette conversation
                 }
-            });
-        }
-
-        // Si le titre matche mais qu'aucun message ne matche spécifiquement
-        if (titleMatches && matches.length === 0) {
-            const firstUserMsgIdx = conv.messages ? conv.messages.findIndex(m => m.role === 'user') : -1;
-            if (firstUserMsgIdx !== -1) {
-                matches.push({ index: firstUserMsgIdx, content: conv.messages[firstUserMsgIdx].content });
-            } else if (conv.messages && conv.messages.length > 0) {
-                matches.push({ index: 0, content: conv.messages[0].content });
             }
         }
 
-        matches.forEach(match => {
-            const contentDisplay = match.content.length > 100 ? match.content.substring(0, 100) + '...' : match.content;
-            resultsHtml += `
-            <div class="search-result-item" onclick="jumpToMessage('${conv.id}', ${match.index})">
-                <div class="search-result-title">💬 ${conv.nom}</div>
-                <div class="search-result-text">${contentDisplay}</div>
-            </div>`;
-        });
+        // 4. Si on a une correspondance (Titre ou Message), on affiche le résultat
+        if (titleMatch || messageMatchIndex !== -1) {
+            foundCount++;
+            const resultItem = document.createElement('div');
+            resultItem.className = 'search-result-item';
+            
+            // Redirection au clic
+            resultItem.onclick = function() { 
+                jumpToMessage(conv.id, messageMatchIndex !== -1 ? messageMatchIndex : 0); 
+            };
+            
+            const titleEl = document.createElement('div');
+            titleEl.className = 'search-result-title';
+            titleEl.innerText = "📄 " + (conv.nom || "Conversation sans titre");
+            
+            const textEl = document.createElement('div');
+            textEl.className = 'search-result-text';
+            textEl.innerText = messageMatchIndex !== -1 ? `"...${matchingText.substring(0, 60)}..."` : "Correspondance dans le titre";
+            
+            resultItem.appendChild(titleEl);
+            resultItem.appendChild(textEl);
+            resultsContainer.appendChild(resultItem);
+        }
     });
 
-    if (!resultsHtml) {
-        resultsDiv.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:0.9rem; text-align:center;">Aucun résultat</div>';
-    } else {
-        resultsDiv.innerHTML = resultsHtml;
+    // 5. Affichage si aucun résultat
+    if (foundCount === 0) {
+        resultsContainer.innerHTML = '<div style="padding: 10px; color: var(--text-muted); font-style: italic;">Aucun résultat trouvé pour "' + query + '".</div>';
     }
 };
 
 // ── Navigation & Jump to Message ───────────────────────────
 window.jumpToMessage = function(convId, msgIndex) {
-    window.closeSettingsModal();
-    ouvrirConversation(convId);
+    // 1. Fermer la modale
+    if (typeof closeSettingsModal === 'function') closeSettingsModal();
+    
+    // 2. Ouvrir la conversation correspondante
+    if (typeof ouvrirConversation === 'function') {
+        ouvrirConversation(convId);
+    }
+    
+    // 3. Attendre que le DOM se mette à jour, puis scroller
     setTimeout(() => {
         const target = document.getElementById('msg-' + msgIndex);
         if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            target.classList.remove('highlight-msg');
-            void target.offsetWidth; // Force reflow to restart animation if clicked again
+            target.scrollIntoView({behavior: 'smooth', block: 'center'});
             target.classList.add('highlight-msg');
+            // Retirer l'animation après 2 secondes pour pouvoir la rejouer plus tard
+            setTimeout(() => target.classList.remove('highlight-msg'), 2000);
         }
-    }, 100);
+    }, 150); // Petit délai pour laisser le temps à l'UI de générer les messages
 };
 
 // ── Delete All Conversations ───────────────────────────────
