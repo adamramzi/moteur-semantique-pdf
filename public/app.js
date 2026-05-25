@@ -803,81 +803,106 @@ window.deleteAccount = async function() {
     }
 };
 
+// ── Navigation & Close Search Results ──────────────────────
+window.closeSearchResults = function() {
+    const searchScreen = document.getElementById('search-results-screen');
+    const dashboardScreen = document.getElementById('dashboard-screen');
+    if (searchScreen) {
+        searchScreen.style.display = 'none';
+        searchScreen.classList.remove('active');
+    }
+    if (dashboardScreen) {
+        dashboardScreen.style.display = 'flex';
+        dashboardScreen.classList.add('active');
+    }
+};
+
 // ── History Search ──────────────────────────────────────────
 window.searchHistory = function() {
     const inputEl = document.getElementById('search-history-input');
-    const resultsContainer = document.getElementById('search-history-results');
-    
-    if (!inputEl || !resultsContainer) return;
+    if (!inputEl) return;
 
     const query = inputEl.value.trim().toLowerCase();
-    resultsContainer.innerHTML = ''; // Nettoyer les anciens résultats
-
     if (query.length === 0) return;
 
-    // 1. Lire directement depuis le localStorage pour éviter les erreurs de variables globales
-    let convs = [];
-    try {
-        const stored = localStorage.getItem('studysearch_convos'); 
-        if (stored) convs = JSON.parse(stored);
-    } catch (e) {
-        console.error("Erreur de lecture de l'historique", e);
-        return;
+    // 1. Fermer la modale
+    if (typeof closeSettingsModal === 'function') closeSettingsModal();
+
+    // 2. Basculer l'affichage vers la page de recherche
+    const dashboard = document.getElementById('dashboard-screen');
+    const searchScreen = document.getElementById('search-results-screen');
+
+    if (dashboard) dashboard.style.display = 'none'; // Cache le dashboard
+    if (dashboard) dashboard.classList.remove('active'); 
+    if (searchScreen) searchScreen.style.display = 'flex'; // Affiche la page de recherche
+
+    document.getElementById('search-query-display').innerText = '"' + query + '"';
+    const resultsContainer = document.getElementById('full-search-results');
+    resultsContainer.innerHTML = ''; // Nettoyer
+
+    // 3. RECUPÉRATION SÉCURISÉE DES DONNÉES (Fix du bug)
+    // Cherche d'abord dans la variable globale, sinon dans le localStorage
+    let convsToSearch = [];
+    if (typeof conversations !== 'undefined' && Array.isArray(conversations) && conversations.length > 0) {
+        convsToSearch = conversations;
+    } else {
+        try {
+            const localData = localStorage.getItem('conversations') || localStorage.getItem('studysearch_convos');
+            if (localData) convsToSearch = JSON.parse(localData);
+        } catch (e) { console.error("Erreur de parsing", e); }
     }
 
     let foundCount = 0;
 
-    // 2. Parcourir toutes les conversations de l'utilisateur connecté
-    convs.forEach(conv => {
+    // 4. Moteur de recherche
+    convsToSearch.forEach(conv => {
         if (conv.email !== userEmail) return;
 
-        const titleMatch = conv.nom && conv.nom.toLowerCase().includes(query);
-        let messageMatchIndex = -1;
-        let matchingText = "";
+        let matchFound = false;
+        let snippet = "Correspondance trouvée dans le document.";
+        let messageMatchIndex = 0;
 
-        // 3. Parcourir les messages de la conversation (en gérant content ou text)
+        // Vérification du titre
+        if (conv.nom && conv.nom.toLowerCase().includes(query)) {
+            matchFound = true;
+        }
+
+        // Vérification des messages (gère text ou content)
         if (conv.messages && Array.isArray(conv.messages)) {
             for (let i = 0; i < conv.messages.length; i++) {
                 const msg = conv.messages[i];
-                const textContent = msg.content || msg.text || ""; // Gère les deux formats habituels
-                
-                // On cherche uniquement dans les messages de l'utilisateur
-                if ((msg.role === 'user' || msg.sender === 'user' || !msg.role) && textContent.toLowerCase().includes(query)) {
+                const msgText = msg.content || msg.text || "";
+
+                if (msgText.toLowerCase().includes(query)) {
+                    matchFound = true;
                     messageMatchIndex = i;
-                    matchingText = textContent;
-                    break; // On s'arrête au premier message correspondant dans cette conversation
+                    snippet = msgText.substring(0, 120) + "..."; // Garde un extrait
+                    break; // On s'arrête au premier message pertinent de cette conv
                 }
             }
         }
 
-        // 4. Si on a une correspondance (Titre ou Message), on affiche le résultat
-        if (titleMatch || messageMatchIndex !== -1) {
+        // 5. Affichage si trouvé
+        if (matchFound) {
             foundCount++;
-            const resultItem = document.createElement('div');
-            resultItem.className = 'search-result-item';
-            
-            // Redirection au clic
-            resultItem.onclick = function() { 
-                jumpToMessage(conv.id, messageMatchIndex !== -1 ? messageMatchIndex : 0); 
+            const card = document.createElement('div');
+            card.className = 'result-card';
+
+            card.onclick = function() {
+                closeSearchResults(); // Retour au dashboard
+                jumpToMessage(conv.id, messageMatchIndex); // Ouvre la conversation
             };
-            
-            const titleEl = document.createElement('div');
-            titleEl.className = 'search-result-title';
-            titleEl.innerText = "📄 " + (conv.nom || "Conversation sans titre");
-            
-            const textEl = document.createElement('div');
-            textEl.className = 'search-result-text';
-            textEl.innerText = messageMatchIndex !== -1 ? `"...${matchingText.substring(0, 60)}..."` : "Correspondance dans le titre";
-            
-            resultItem.appendChild(titleEl);
-            resultItem.appendChild(textEl);
-            resultsContainer.appendChild(resultItem);
+
+            card.innerHTML = `
+                <h3>📄 ${conv.nom || "Conversation sans titre"}</h3>
+                <p>${snippet}</p>
+            `;
+            resultsContainer.appendChild(card);
         }
     });
 
-    // 5. Affichage si aucun résultat
     if (foundCount === 0) {
-        resultsContainer.innerHTML = '<div style="padding: 10px; color: var(--text-muted); font-style: italic;">Aucun résultat trouvé pour "' + query + '".</div>';
+        resultsContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 1.2rem; margin-top: 50px;">Aucun résultat trouvé pour cette recherche.</p>';
     }
 };
 
