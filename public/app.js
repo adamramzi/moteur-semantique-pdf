@@ -6,7 +6,7 @@ let regEmail = '';
 let selectedFiles = [];
 let searchHistory = [];
 let pdfActif = '';
-let conversations = JSON.parse(localStorage.getItem('studysearch_convos') || '[]');
+let conversations = JSON.parse(localStorage.getItem('conversations') || localStorage.getItem('studysearch_convos') || '[]');
 let currentConvId = null;
 let allUserDocuments = [];
 
@@ -206,6 +206,11 @@ function logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('email');
     localStorage.removeItem('userName');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('activeConversationId');
+    localStorage.removeItem('conversations');
+    localStorage.removeItem('studysearch_convos');
+    conversations = [];
     goHome();
     toast('Déconnecté.', 'info');
 }
@@ -481,6 +486,8 @@ function ouvrirConversation(id) {
     pdfActif = convo.pdf_name || "";
     updateDocumentDropdown();
     
+    localStorage.setItem('activeConversationId', id);
+    
     renderConversations();
     renderMessages();
 }
@@ -504,6 +511,7 @@ function saveCurrentConversation() {
         conv.messages = messagesChat;
         conv.pdf_name = pdfActif;
     }
+    localStorage.setItem('conversations', JSON.stringify(conversations));
     localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
     renderConversations();
 }
@@ -531,6 +539,7 @@ window.supprimerConversation = async function(id) {
         }
         
         conversations = conversations.filter(c => c.id !== id);
+        localStorage.setItem('conversations', JSON.stringify(conversations));
         localStorage.setItem('studysearch_convos', JSON.stringify(conversations));
 
         if (currentConvId === id) {
@@ -583,6 +592,8 @@ function nouvelleConversation() {
     currentConvId = Date.now().toString(); // ID temporaire
     messagesChat = [];
     pdfActif = ""; // Réinitialise le document
+
+    localStorage.removeItem('activeConversationId');
 
     // Réinitialisation visuelle
     updateDocumentDropdown();
@@ -906,6 +917,7 @@ window.deleteAllConversations = function() {
 
     // 3. Nettoyer la sauvegarde dans le navigateur
     localStorage.removeItem('studysearch_convos');
+    localStorage.removeItem('conversations');
 
     // 4. Mettre à jour l'affichage de la barre latérale
     if (typeof renderConversations === 'function') {
@@ -928,8 +940,48 @@ if (savedTheme === 'light') {
     document.body.classList.add('light-mode');
 }
 
-if (token && userEmail) {
-    api('/auth/me').then(() => goDashboard()).catch(() => goHome());
-} else {
-    goHome();
-}
+document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('token');
+    
+    if (token && userEmail) {
+        // 1. Forcer l'affichage du Dashboard au lieu de l'accueil
+        const homeScreen = document.getElementById('home-screen');
+        const dashboardScreen = document.getElementById('dashboard-screen');
+        if (homeScreen) homeScreen.classList.remove('active');
+        if (dashboardScreen) dashboardScreen.classList.add('active');
+        
+        // 2. Recharger le profil utilisateur (Nom et Initiale)
+        if (typeof updateUserProfile === 'function') updateUserProfile();
+        
+        // 3. Forcer le rendu visuel de la barre latérale à partir des conversations chargées
+        if (typeof renderConversations === 'function') {
+            renderConversations(); 
+        }
+        
+        // 4. Restaurer la vue sur la dernière conversation ouverte
+        const savedConvId = localStorage.getItem('activeConversationId');
+        if (savedConvId && typeof ouvrirConversation === 'function') {
+            // Un léger délai garantit que le DOM est prêt à recevoir les messages
+            setTimeout(() => {
+                ouvrirConversation(savedConvId);
+            }, 100);
+        } else if (typeof nouvelleConversation === 'function') {
+            nouvelleConversation();
+        }
+
+        // 5. Validation du token en arrière-plan et chargement des données fraîches du serveur
+        if (typeof api === 'function') {
+            api('/auth/me').then(() => {
+                if (typeof loadDashboard === 'function') loadDashboard();
+            }).catch(() => {
+                if (typeof logout === 'function') logout();
+            });
+        }
+    } else {
+        // Aucun token détecté : redirection stricte vers l'accueil
+        const homeScreen = document.getElementById('home-screen');
+        const dashboardScreen = document.getElementById('dashboard-screen');
+        if (homeScreen) homeScreen.classList.add('active');
+        if (dashboardScreen) dashboardScreen.classList.remove('active');
+    }
+});
