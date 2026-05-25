@@ -10,6 +10,8 @@
   --accent: #ffffff;
   --radius: 16px;
   --radius-sm: 10px;
+  --bg-msg-user: #333538;
+  --text-msg-user: #e3e3e3;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -566,12 +568,12 @@ input::placeholder { color: var(--text-muted); opacity: 0.6; }
 }
 .msg-user {
     align-self: flex-end;
-    background: #333538;
+    background: var(--bg-msg-user);
     border: none;
     border-radius: 18px 18px 4px 18px;
     padding: 12px 16px;
     max-width: 70%;
-    color: var(--text-main);
+    color: var(--text-msg-user);
     font-size: 0.93rem;
     line-height: 1.6;
 }
@@ -826,6 +828,8 @@ body.light-mode {
     --text-main: #1f1f1f;
     --text-muted: #444746;
     --border: #dadce0;
+    --bg-msg-user: #e8eaed;
+    --text-msg-user: #1f1f1f;
 }
 
 /* ── SETTINGS MODAL ── */
