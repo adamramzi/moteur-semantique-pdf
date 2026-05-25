@@ -342,7 +342,10 @@
 
         <div class="settings-section">
             <h3>Rechercher dans l'historique</h3>
-            <input type="text" id="search-history-input" placeholder="Chercher une question ou un titre..." oninput="searchHistory()" />
+            <div class="search-box-container">
+                <input type="text" id="search-history-input" placeholder="Chercher une question ou un titre..." onkeydown="if(event.key==='Enter') searchHistory()" />
+                <button class="btn-search-history" onclick="searchHistory()" title="Lancer la recherche">🔍</button>
+            </div>
             <div id="search-history-results" style="max-height: 200px; overflow-y: auto; margin-top: 10px;"></div>
         </div>
     </div>

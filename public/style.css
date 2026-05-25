@@ -930,5 +930,39 @@ body.light-mode {
     100% { background-color: transparent; }
 }
 
+/* ── SEARCH BOX BUTTONS ── */
+.search-box-container {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.search-box-container #search-history-input {
+    flex-grow: 1;
+    margin-bottom: 0; /* Annule la marge inférieure précédente si elle existait */
+}
+
+.btn-search-history {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    border-radius: 8px;
+    padding: 0 15px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-search-history:hover {
+    background-color: var(--bg-hover);
+}
+
+.btn-search-history:active {
+    transform: scale(0.95);
+}
+
 
 
