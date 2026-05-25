@@ -746,9 +746,22 @@ input::placeholder { color: var(--text-muted); opacity: 0.6; }
     top: 1rem;
     left: 1rem;
     z-index: 1000;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    color: #ffffff !important; /* Force la couleur blanche */
+    background: transparent;
+    border: none;
+    font-size: 1.8rem; /* Rend l'icône un peu plus grande */
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#btn-open-sidebar:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Léger fond gris/blanc au survol */
+    transform: scale(1.05); /* Petit effet de rebond */
 }
 
 /* ── AUTH CARD ADAPTATION (Facebook Dark Style) ── */
