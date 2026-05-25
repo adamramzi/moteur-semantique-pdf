@@ -98,7 +98,9 @@ $('btn-login').addEventListener('click', async () => {
         const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ email, password: pwd }) });
         token = data.token; userEmail = data.email;
         localStorage.setItem('token', token); localStorage.setItem('email', userEmail);
+        localStorage.setItem('userName', data.nom_complet || 'Utilisateur');
         toast('Connexion réussie !', 'success');
+        updateUserProfile();
         goDashboard();
     } catch (e) { toast(e.message, 'error'); }
     finally { loading(false); }
@@ -106,15 +108,16 @@ $('btn-login').addEventListener('click', async () => {
 
 // ── Register ────────────────────────────────────────────────
 $('btn-register').addEventListener('click', async () => {
+    const fullname = $('register-fullname').value.trim();
     const email = $('reg-email').value.trim();
     const pwd = $('reg-password').value;
     const pwd2 = $('reg-password2').value;
-    if (!email || !pwd || !pwd2) return toast('Remplissez tous les champs.', 'error');
+    if (!fullname || !email || !pwd || !pwd2) return toast('Remplissez tous les champs.', 'error');
     if (pwd !== pwd2) return toast('Les mots de passe ne correspondent pas.', 'error');
     if (pwd.length < 6) return toast('Minimum 6 caractères pour le mot de passe.', 'error');
     try {
         loading(true, 'Création du compte…');
-        const data = await api('/auth/register', { method: 'POST', body: JSON.stringify({ email, password: pwd }) });
+        const data = await api('/auth/register', { method: 'POST', body: JSON.stringify({ email, password: pwd, nom_complet: fullname }) });
         regEmail = email;
         $('verify-email-text').textContent = `Code envoyé à ${email}`;
         toast(data.message, 'success');
@@ -194,12 +197,20 @@ $('btn-resend').addEventListener('click', async () => {
 $('btn-cancel-verify').addEventListener('click', () => { show('auth-screen'); });
 
 // ── Logout ──────────────────────────────────────────────────
-$('btn-logout').addEventListener('click', () => {
+function logout() {
     token = ''; userEmail = '';
-    localStorage.removeItem('token'); localStorage.removeItem('email');
+    localStorage.removeItem('token');
+    localStorage.removeItem('email');
+    localStorage.removeItem('userName');
     goHome();
     toast('Déconnecté.', 'info');
-});
+}
+window.logout = logout;
+
+const oldLogoutBtn = $('btn-logout');
+if (oldLogoutBtn) {
+    oldLogoutBtn.addEventListener('click', logout);
+}
 
 // ── Upload Zone ─────────────────────────────────────────────
 const uploadZone = $('upload-zone');
@@ -317,6 +328,7 @@ function updateDocumentDropdown() {
 
 // ── Dashboard Loading ───────────────────────────────────────
 async function loadDashboard() {
+    updateUserProfile();
     try {
         const [stats, docsRes] = await Promise.all([api('/stats'), api('/documents')]);
 
@@ -568,6 +580,19 @@ function nouvelleConversation() {
     renderMessages();
     // CRITIQUE : Ne pas push dans le tableau 'conversations' ni sauvegarder ici.
 }
+function updateUserProfile() {
+    const name = localStorage.getItem('userName') || 'Utilisateur';
+    const displayEl = $('user-name-display');
+    const avatarEl = $('user-avatar');
+
+    if (displayEl) displayEl.innerText = name;
+
+    if (avatarEl) {
+        const premiereLettre = name.trim().charAt(0).toUpperCase();
+        avatarEl.innerText = premiereLettre || '?';
+    }
+}
+window.updateUserProfile = updateUserProfile;
 window.nouvelleConversation = nouvelleConversation;
 
 function renderMessages() {

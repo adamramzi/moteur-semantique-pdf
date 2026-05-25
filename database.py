@@ -146,12 +146,17 @@ def init_db() -> None:
             id                INTEGER  PRIMARY KEY AUTOINCREMENT,
             email             TEXT     NOT NULL UNIQUE,
             mot_de_passe      TEXT     NOT NULL,
+            nom_complet       TEXT,
             date_inscription  TEXT     NOT NULL,
             ip_address        TEXT,
             est_verifie       INTEGER  NOT NULL DEFAULT 0,
             code_verification TEXT
         )
     """)
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN nom_complet TEXT")
+    except Exception:
+        pass
 
     # ── Table documents ─────────────────────────────────────────
     cursor.execute("""
@@ -229,7 +234,7 @@ def _verifier_hash(mot_de_passe: str, hash_stocke: str) -> bool:
 # ──────────────────────────────────────────────────────────────
 # Fonctions publiques
 # ──────────────────────────────────────────────────────────────
-def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
+def creer_utilisateur(email: str, mot_de_passe: str, nom_complet: str, ip: str) -> dict:
     """
     Enregistre un nouvel utilisateur en base de données.
 
@@ -240,6 +245,7 @@ def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
     Args:
         email:        L'adresse e-mail de l'utilisateur.
         mot_de_passe: Le mot de passe en texte clair.
+        nom_complet:  Le nom complet de l'utilisateur.
         ip:           L'adresse IP de l'utilisateur.
 
     Returns:
@@ -267,10 +273,10 @@ def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
         cursor.execute(
             """
             INSERT INTO users
-                (email, mot_de_passe, date_inscription, ip_address, est_verifie, code_verification)
-            VALUES (?, ?, ?, ?, 0, ?)
+                (email, mot_de_passe, nom_complet, date_inscription, ip_address, est_verifie, code_verification)
+            VALUES (?, ?, ?, ?, ?, 0, ?)
             """,
-            (email.lower().strip(), hash_mdp, date_inscription, ip, code),
+            (email.lower().strip(), hash_mdp, nom_complet, date_inscription, ip, code),
         )
         conn.commit()
         conn.close()
@@ -286,16 +292,16 @@ def creer_utilisateur(email: str, mot_de_passe: str, ip: str) -> dict:
 def verifier_utilisateur(email, mot_de_passe):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, mot_de_passe, est_verifie FROM users WHERE email = ?", (email.strip().lower(),))
+    cursor.execute("SELECT id, mot_de_passe, est_verifie, nom_complet FROM users WHERE email = ?", (email.strip().lower(),))
     row = cursor.fetchone()
     conn.close()
     if row is None:
         return False, "Aucun compte trouvé avec cette adresse email"
-    user_id, hash_mdp, est_verifie = row
+    user_id, hash_mdp, est_verifie, nom_complet = row
     if not est_verifie:
         return False, "Compte non vérifié. Vérifiez votre email"
     if bcrypt.checkpw(mot_de_passe.encode(), hash_mdp if isinstance(hash_mdp, bytes) else hash_mdp.encode()):
-        return True, user_id
+        return True, {"id": user_id, "nom_complet": nom_complet}
     return False, "Mot de passe incorrect"
 
 

@@ -779,3 +779,25 @@ input::placeholder { color: var(--text-muted); opacity: 0.6; }
     border-color: var(--text-muted);
 }
 
+/* ── GEMINI USER PROFILE & ICON BUTTONS ── */
+.gemini-icon-btn {
+    background: transparent; border: none; color: var(--text-muted);
+    width: 36px; height: 36px; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+    transition: background 0.2s;
+}
+.gemini-icon-btn:hover { background: var(--bg-hover); color: var(--text-main); }
+
+.gemini-user-profile {
+    display: flex; align-items: center; padding: 15px; margin-top: auto;
+    border-top: 1px solid var(--border); gap: 12px;
+}
+.gemini-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #d94a1c; color: white; display: flex; align-items: center; justify-content: center;
+    font-weight: 500; font-size: 1.1rem;
+}
+.gemini-user-info { display: flex; flex-direction: column; flex-grow: 1; }
+#user-name-display { font-size: 0.95rem; font-weight: 500; color: var(--text-main); }
+
+

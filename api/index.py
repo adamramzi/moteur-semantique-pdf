@@ -101,6 +101,7 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: str
     password: str
+    nom_complet: str
 
 class VerifyRequest(BaseModel):
     email: str
@@ -170,7 +171,7 @@ async def login(data: LoginRequest):
     success, result = verifier_utilisateur(email_cleaned, data.password)
     if success:
         token = create_token(email_cleaned)
-        return {"token": token, "email": email_cleaned}
+        return {"token": token, "email": email_cleaned, "nom_complet": result.get("nom_complet", "Utilisateur")}
     raise HTTPException(status_code=401, detail=result)
 
 
@@ -178,7 +179,10 @@ async def login(data: LoginRequest):
 async def register(data: RegisterRequest, request: Request):
     email = data.email.strip().lower()
     password = data.password
+    nom_complet = data.nom_complet.strip()
 
+    if not nom_complet:
+        raise HTTPException(status_code=400, detail="Le nom complet est requis.")
     if not email or "@" not in email or "." not in email.split("@")[-1]:
         raise HTTPException(status_code=400, detail="Adresse e-mail invalide.")
     if len(password) < 6:
@@ -187,7 +191,7 @@ async def register(data: RegisterRequest, request: Request):
         raise HTTPException(status_code=409, detail="❌ Un compte existe déjà avec cette adresse email. Veuillez vous connecter ou utiliser une autre adresse.")
 
     ip = get_ip_utilisateur(request)
-    res = creer_utilisateur(email, password, ip)
+    res = creer_utilisateur(email, password, nom_complet, ip)
     if not res["succes"]:
         raise HTTPException(status_code=400, detail=res.get("erreur", "Erreur"))
 

@@ -127,6 +127,10 @@
             <!-- Register -->
             <form id="register-form" class="auth-form" onsubmit="return false;">
                 <div class="form-group">
+                    <label for="register-fullname">👤 Nom complet</label>
+                    <input type="text" id="register-fullname" placeholder="Nom complet" required />
+                </div>
+                <div class="form-group">
                     <label for="reg-email">📧 Adresse e-mail</label>
                     <input type="email" id="reg-email" placeholder="vous@exemple.com" required>
                 </div>
@@ -214,20 +218,13 @@
     <aside class="sidebar">
         <div class="sidebar-header">
             <span class="logo">✨ StudySearch</span>
-            <button id="btn-toggle-sidebar" class="icon-btn">⏪</button>
+            <button id="btn-toggle-sidebar" class="gemini-icon-btn" title="Fermer la barre latérale">◂</button>
         </div>
 
         <button class="gemini-menu-btn" onclick="nouvelleConversation()">📝 Nouvelle discussion</button>
 
-        <div class="user-card">
-            <div class="user-label">✅ Connecté</div>
-            <div class="user-email" id="sidebar-email">—</div>
-        </div>
-
-        <hr class="section-divider" style="margin: 0.8rem 0;">
-
         <div class="sidebar-section">
-            <h3>Notebooks</h3>
+            <h3>Conversations</h3>
             <div id="history-content"></div>
         </div>
 
@@ -240,7 +237,13 @@
 
         <hr class="section-divider" style="margin: 0.8rem 0; margin-top: auto;">
 
-        <button class="link-btn" id="btn-logout" style="width:100%; text-align: left; padding: 10px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">🚪 Se déconnecter</button>
+        <div class="gemini-user-profile">
+            <div class="gemini-avatar" id="user-avatar"></div>
+            <div class="gemini-user-info">
+                <span id="user-name-display">Utilisateur</span>
+            </div>
+            <button id="btn-logout-icon" class="gemini-icon-btn" onclick="logout()" title="Se déconnecter">⚙️</button>
+        </div>
     </aside>
 
     <!-- Main Content -->
