@@ -934,6 +934,28 @@ body.light-mode {
     0% { background-color: rgba(217, 74, 28, 0.4); }
     100% { background-color: transparent; }
 }
+
+/* Nouveau style discret pour le bouton "Effacer tous mes documents" */
+#btn-reset {
+    background-color: transparent;
+    color: #ff4d4d;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 20px;
+    font-size: 0.88rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+    width: 100%;
+    font-weight: 500;
+    font-family: inherit;
+}
+
+#btn-reset:hover {
+    background-color: #ff4d4d20 !important;
+    color: #ffffff !important;
 }
 
 
