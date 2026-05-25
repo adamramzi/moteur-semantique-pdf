@@ -199,6 +199,9 @@ $('btn-cancel-verify').addEventListener('click', () => { show('auth-screen'); })
 
 // ── Logout ──────────────────────────────────────────────────
 function logout() {
+    if (typeof closeSettingsModal === 'function') {
+        closeSettingsModal();
+    }
     token = ''; userEmail = '';
     localStorage.removeItem('token');
     localStorage.removeItem('email');
@@ -752,6 +755,11 @@ window.toggleTheme = function() {
 // ── Account Deletion ────────────────────────────────────────
 window.deleteAccount = async function() {
     if (!confirm("Êtes-vous sûr de vouloir supprimer définitivement votre compte et toutes vos données ? Cette action est irréversible.")) return;
+
+    // Fermer la modale instantanément après confirmation
+    if (typeof closeSettingsModal === 'function') {
+        closeSettingsModal();
+    }
 
     try {
         const token = localStorage.getItem('token');
