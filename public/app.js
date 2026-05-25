@@ -742,12 +742,6 @@ window.openSettingsModal = function() {
     if (nameEl) nameEl.textContent = name;
     if (emailEl) emailEl.textContent = email;
 
-    // Reset/clear history search input and results on open
-    const searchInput = document.getElementById('search-history-input');
-    const searchResults = document.getElementById('search-history-results');
-    if (searchInput) searchInput.value = '';
-    if (searchResults) searchResults.innerHTML = '';
-
     const modal = document.getElementById('settings-modal');
     if (modal) modal.classList.remove('hidden');
 };
@@ -756,6 +750,17 @@ window.closeSettingsModal = function() {
     const modal = document.getElementById('settings-modal');
     if (modal) modal.classList.add('hidden');
 };
+
+// Fermer la modale en cliquant à l'extérieur
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('settings-modal');
+    // Si le clic cible exactement le fond sombre de la modale (et non son contenu)
+    if (event.target === modal) {
+        if (typeof closeSettingsModal === 'function') {
+            closeSettingsModal();
+        }
+    }
+});
 
 // ── Theme Management ────────────────────────────────────────
 window.toggleTheme = function() {
@@ -803,108 +808,7 @@ window.deleteAccount = async function() {
     }
 };
 
-// ── Navigation & Close Search Results ──────────────────────
-window.closeSearchResults = function() {
-    const searchScreen = document.getElementById('search-results-screen');
-    const dashboardScreen = document.getElementById('dashboard-screen');
-    if (searchScreen) {
-        searchScreen.style.display = 'none';
-        searchScreen.classList.remove('active');
-    }
-    if (dashboardScreen) {
-        dashboardScreen.style.display = 'flex';
-        dashboardScreen.classList.add('active');
-    }
-};
 
-// ── History Search ──────────────────────────────────────────
-window.searchHistory = function() {
-    const inputEl = document.getElementById('search-history-input');
-    if (!inputEl) return;
-
-    const query = inputEl.value.trim().toLowerCase();
-    if (query.length === 0) return;
-
-    // 1. Fermer la modale
-    if (typeof closeSettingsModal === 'function') closeSettingsModal();
-
-    // 2. Basculer l'affichage vers la page de recherche
-    const dashboard = document.getElementById('dashboard-screen');
-    const searchScreen = document.getElementById('search-results-screen');
-
-    if (dashboard) dashboard.style.display = 'none'; // Cache le dashboard
-    if (dashboard) dashboard.classList.remove('active'); 
-    if (searchScreen) searchScreen.style.display = 'flex'; // Affiche la page de recherche
-
-    document.getElementById('search-query-display').innerText = '"' + query + '"';
-    const resultsContainer = document.getElementById('full-search-results');
-    resultsContainer.innerHTML = ''; // Nettoyer
-
-    // 3. RECUPÉRATION SÉCURISÉE DES DONNÉES (Fix du bug)
-    // Cherche d'abord dans la variable globale, sinon dans le localStorage
-    let convsToSearch = [];
-    if (typeof conversations !== 'undefined' && Array.isArray(conversations) && conversations.length > 0) {
-        convsToSearch = conversations;
-    } else {
-        try {
-            const localData = localStorage.getItem('conversations') || localStorage.getItem('studysearch_convos');
-            if (localData) convsToSearch = JSON.parse(localData);
-        } catch (e) { console.error("Erreur de parsing", e); }
-    }
-
-    let foundCount = 0;
-
-    // 4. Moteur de recherche
-    convsToSearch.forEach(conv => {
-        if (conv.email !== userEmail) return;
-
-        let matchFound = false;
-        let snippet = "Correspondance trouvée dans le document.";
-        let messageMatchIndex = 0;
-
-        // Vérification du titre
-        if (conv.nom && conv.nom.toLowerCase().includes(query)) {
-            matchFound = true;
-        }
-
-        // Vérification des messages (gère text ou content)
-        if (conv.messages && Array.isArray(conv.messages)) {
-            for (let i = 0; i < conv.messages.length; i++) {
-                const msg = conv.messages[i];
-                const msgText = msg.content || msg.text || "";
-
-                if (msgText.toLowerCase().includes(query)) {
-                    matchFound = true;
-                    messageMatchIndex = i;
-                    snippet = msgText.substring(0, 120) + "..."; // Garde un extrait
-                    break; // On s'arrête au premier message pertinent de cette conv
-                }
-            }
-        }
-
-        // 5. Affichage si trouvé
-        if (matchFound) {
-            foundCount++;
-            const card = document.createElement('div');
-            card.className = 'result-card';
-
-            card.onclick = function() {
-                closeSearchResults(); // Retour au dashboard
-                jumpToMessage(conv.id, messageMatchIndex); // Ouvre la conversation
-            };
-
-            card.innerHTML = `
-                <h3>📄 ${conv.nom || "Conversation sans titre"}</h3>
-                <p>${snippet}</p>
-            `;
-            resultsContainer.appendChild(card);
-        }
-    });
-
-    if (foundCount === 0) {
-        resultsContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 1.2rem; margin-top: 50px;">Aucun résultat trouvé pour cette recherche.</p>';
-    }
-};
 
 // ── Navigation & Jump to Message ───────────────────────────
 window.jumpToMessage = function(convId, msgIndex) {

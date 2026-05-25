@@ -318,14 +318,6 @@
     </main>
 </div>
 
-<div id="search-results-screen" class="screen" style="display: none;">
-    <div class="search-header">
-        <button class="icon-btn" onclick="closeSearchResults()">🔙 Retour au Dashboard</button>
-        <h2>Résultats pour : <span id="search-query-display" style="color: var(--text-muted); font-style: italic;"></span></h2>
-    </div>
-    <div id="full-search-results" class="full-search-results-container"></div>
-</div>
-
 <div id="settings-modal" class="modal hidden">
     <div class="modal-content settings-content">
         <div class="modal-header">
@@ -348,13 +340,6 @@
             <button class="gemini-menu-btn" onclick="toggleTheme()">🌓 Basculer Thème (Clair/Sombre)</button>
         </div>
 
-        <div class="settings-section">
-            <h3>Rechercher dans l'historique</h3>
-            <div class="search-box-container">
-                <input type="text" id="search-history-input" placeholder="Chercher une question ou un titre..." onkeydown="if(event.key==='Enter') searchHistory()" />
-                <button class="btn-search-history" onclick="searchHistory()" title="Lancer la recherche">🔍</button>
-            </div>
-        </div>
     </div>
 </div>
 
