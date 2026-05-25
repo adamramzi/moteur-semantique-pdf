@@ -22,7 +22,19 @@ function getFileIcon(filename) {
     return '📄';
 }
 
-function $(id) { return document.getElementById(id); }
+function $(id) {
+    const el = document.getElementById(id);
+    if (!el && id === 'tab-login') {
+        return {
+            click: () => {
+                document.querySelectorAll('#auth-screen .auth-form').forEach(f => f.classList.remove('active'));
+                const lf = document.getElementById('login-form');
+                if (lf) lf.classList.add('active');
+            }
+        };
+    }
+    return el;
+}
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.remove('active')); $(id).classList.add('active'); }
 
 function toast(msg, type = 'info') {
@@ -373,6 +385,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // Logique des bascules d'écrans d'authentification (Style Facebook)
+    const btnGoRegister = $('btn-go-register');
+    const linkForgotPwd = $('link-forgot-pwd');
+    const linkBackLoginReg = $('link-back-login-reg');
+    const linkBackLoginForgot = $('link-back-login-forgot');
+
+    function switchForm(formId) {
+        document.querySelectorAll('#auth-screen .auth-form').forEach(f => f.classList.remove('active'));
+        const targetForm = $(formId);
+        if (targetForm) targetForm.classList.add('active');
+    }
+
+    if (btnGoRegister) {
+        btnGoRegister.addEventListener('click', () => switchForm('register-form'));
+    }
+    if (linkForgotPwd) {
+        linkForgotPwd.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchForm('forgot-form');
+        });
+    }
+    if (linkBackLoginReg) {
+        linkBackLoginReg.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchForm('login-form');
+        });
+    }
+    if (linkBackLoginForgot) {
+        linkBackLoginForgot.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchForm('login-form');
+        });
+    }
 });
 
 // ── History Section (Gestion des Conversations) ──────────────

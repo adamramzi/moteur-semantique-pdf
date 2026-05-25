@@ -105,13 +105,7 @@
             <h1 class="gradient-text">Moteur Sémantique PDF</h1>
             <p class="auth-subtitle">Recherche intelligente dans vos documents</p>
 
-            <div class="auth-tabs">
-                <button class="tab-btn active" data-tab="login" id="tab-login">🔐 Connexion</button>
-                <button class="tab-btn" data-tab="register" id="tab-register">✨ Inscription</button>
-                <button class="tab-btn" data-tab="forgot" id="tab-forgot">🔑 Mot de passe oublié</button>
-            </div>
-
-            <!-- Login -->
+            <!-- Login (Style Facebook Dark) -->
             <form id="login-form" class="auth-form active" onsubmit="return false;">
                 <div class="form-group">
                     <label for="login-email">📧 Adresse e-mail</label>
@@ -122,6 +116,12 @@
                     <input type="password" id="login-password" placeholder="••••••••" required>
                 </div>
                 <button class="btn btn-primary" id="btn-login" type="submit">🔐 Se connecter</button>
+                
+                <a href="#" id="link-forgot-pwd" class="link-btn" style="display: block; text-align: center; margin-top: 12px;">Mot de passe oublié ?</a>
+                
+                <div class="auth-divider"></div>
+                
+                <button class="btn btn-secondary-gemini" id="btn-go-register" type="button" style="margin: 0 auto; display: block; width: auto;">Créer un nouveau compte</button>
             </form>
 
             <!-- Register -->
@@ -139,6 +139,8 @@
                     <input type="password" id="reg-password2" placeholder="••••••••" required>
                 </div>
                 <button class="btn btn-primary" id="btn-register" type="submit">✨ Créer mon compte</button>
+                
+                <a href="#" id="link-back-login-reg" class="link-btn" style="display: block; text-align: center; margin-top: 12px;">← Revenir à la connexion</a>
             </form>
 
             <!-- Forgot Password Request -->
@@ -148,6 +150,8 @@
                     <input type="email" id="forgot-email" placeholder="vous@exemple.com" required>
                 </div>
                 <button class="btn btn-primary" id="btn-forgot-request" type="submit">🔑 Réinitialiser mon mot de passe</button>
+                
+                <a href="#" id="link-back-login-forgot" class="link-btn" style="display: block; text-align: center; margin-top: 12px;">← Revenir à la connexion</a>
             </form>
 
             <!-- Forgot Password Reset -->
