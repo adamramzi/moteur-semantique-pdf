@@ -327,7 +327,7 @@ async function loadDashboard() {
     }
 }
 
-// Configurer le changement de document ciblé
+// Configurer le changement de document ciblé et l'UI
 document.addEventListener('DOMContentLoaded', () => {
     const chatPdfSelect = $('chat-pdf-select');
     if (chatPdfSelect) {
@@ -336,6 +336,43 @@ document.addEventListener('DOMContentLoaded', () => {
             saveCurrentConversation();
         });
     }
+
+    // Logique du Sidebar Toggle
+    const btnToggleSidebar = $('btn-toggle-sidebar');
+    const btnOpenSidebar = $('btn-open-sidebar');
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.querySelector('.main-content');
+
+    if (btnToggleSidebar && sidebar && mainContent) {
+        btnToggleSidebar.addEventListener('click', () => {
+            sidebar.classList.add('collapsed');
+            mainContent.style.marginLeft = '0';
+            if (btnOpenSidebar) btnOpenSidebar.style.display = 'flex';
+        });
+    }
+
+    if (btnOpenSidebar && sidebar && mainContent) {
+        btnOpenSidebar.addEventListener('click', () => {
+            sidebar.classList.remove('collapsed');
+            if (window.innerWidth > 768) {
+                mainContent.style.marginLeft = '280px';
+            } else {
+                mainContent.style.marginLeft = '0';
+            }
+            btnOpenSidebar.style.display = 'none';
+        });
+    }
+
+    // Fermeture du menu popup lors d'un clic extérieur
+    document.addEventListener('click', (event) => {
+        const menu = document.getElementById('model-menu');
+        const btn = document.getElementById('btn-model-selector');
+        if (menu && btn && !menu.classList.contains('hidden')) {
+            if (!menu.contains(event.target) && !btn.contains(event.target)) {
+                menu.classList.add('hidden');
+            }
+        }
+    });
 });
 
 // ── History Section (Gestion des Conversations) ──────────────
@@ -458,11 +495,21 @@ window.deleteDoc = async (name) => {
 let chatMode = 'resume'
 let messagesChat = []
 
-function setMode(mode) {
-    chatMode = mode
-    document.getElementById('btn-mode-resume').classList.toggle('active', mode === 'resume')
-    document.getElementById('btn-mode-recherche').classList.toggle('active', mode === 'recherche')
+function selectMode(modeId, modeName) {
+    chatMode = modeId;
+    const btn = document.getElementById('btn-model-selector');
+    if (btn) btn.textContent = `${modeName} ⌄`;
+    const menu = document.getElementById('model-menu');
+    if (menu) menu.classList.add('hidden');
 }
+window.selectMode = selectMode;
+
+function toggleModelMenu() {
+    const menu = document.getElementById('model-menu');
+    if (menu) menu.classList.toggle('hidden');
+}
+window.toggleModelMenu = toggleModelMenu;
+
 
 function nouvelleConversation() {
     currentConvId = Date.now().toString(); // ID temporaire

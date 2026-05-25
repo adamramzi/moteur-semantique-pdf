@@ -208,21 +208,22 @@
 
     <!-- Sidebar -->
     <aside class="sidebar">
-        <div>
-            <div style="font-size:1.5rem;font-weight:800;margin-bottom:.8rem;" class="gradient-text">📚 StudySearch</div>
+        <div class="sidebar-header">
+            <span class="logo">✨ StudySearch</span>
+            <button id="btn-toggle-sidebar" class="icon-btn">⏪</button>
         </div>
+
+        <button class="gemini-menu-btn" onclick="nouvelleConversation()">📝 Nouvelle discussion</button>
 
         <div class="user-card">
             <div class="user-label">✅ Connecté</div>
             <div class="user-email" id="sidebar-email">—</div>
         </div>
 
-        <button class="btn btn-secondary btn-sm" id="btn-logout" style="width:100%">🚪 Se déconnecter</button>
-
         <hr class="section-divider" style="margin: 0.8rem 0;">
 
         <div class="sidebar-section">
-            <h3>📚 Mon Historique</h3>
+            <h3>Notebooks</h3>
             <div id="history-content"></div>
         </div>
 
@@ -235,21 +236,14 @@
 
         <hr class="section-divider" style="margin: 0.8rem 0; margin-top: auto;">
 
-        <div class="sidebar-section" style="margin-top: auto;">
-            <h3>ℹ️ Comment ça marche ?</h3>
-            <div style="font-size: 0.8rem; color: var(--muted); line-height: 1.5; display: flex; flex-direction: column; gap: 0.4rem;">
-                <p>1️⃣ Créez votre compte</p>
-                <p>2️⃣ Importez vos cours</p>
-                <p>3️⃣ Posez vos questions</p>
-                <p>4️⃣ Révisez efficacement</p>
-            </div>
-        </div>
+        <button class="link-btn" id="btn-logout" style="width:100%; text-align: left; padding: 10px 16px; font-size: 0.85rem; display: flex; align-items: center; gap: 8px;">🚪 Se déconnecter</button>
     </aside>
 
     <!-- Main Content -->
     <main class="main-content">
-        <h1 class="gradient-text" style="font-size:2rem;text-align:center;font-weight:800;">🔍 Moteur de recherche sémantique Multidocument</h1>
-        <p style="text-align:center;color:var(--muted);margin-bottom:1.5rem;">Posez une question et trouvez instantanément les réponses dans vos documents</p>
+        <button id="btn-open-sidebar" class="icon-btn" style="display:none;">☰</button>
+        <h1 class="gradient-text" style="font-size:2rem;text-align:center;font-weight:800;margin-top:1rem;">🔍 Moteur de recherche sémantique Multidocument</h1>
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:1.5rem;">Posez une question et trouvez instantanément les réponses dans vos documents</p>
 
         <!-- Upload Section -->
         <div class="section">
@@ -277,24 +271,9 @@
             <!-- Zone Chat -->
             <div class="chat-wrapper">
 
-              <!-- Sélecteur de mode -->
-              <div class="mode-selector">
-                <button class="mode-btn active" id="btn-mode-resume" onclick="setMode('resume')">
-                  📝 Mode Résumé
-                  <span class="mode-desc">Génère un résumé structuré</span>
-                </button>
-                <button class="mode-btn" id="btn-mode-recherche" onclick="setMode('recherche')">
-                  🔍 Mode Recherche
-                  <span class="mode-desc">Trouve l'extrait exact</span>
-                </button>
-                <button class="btn-new-chat" onclick="nouvelleConversation()">
-                  Nouvelle conversation
-                </button>
-              </div>
-
-              <div class="document-selector" style="padding: 10px 16px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; gap: 10px;">
-                  <label style="font-size: 0.85rem; color: var(--muted);">📄 Document ciblé :</label>
-                  <select id="chat-pdf-select" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--text); padding: 4px 8px; font-size: 0.85rem; outline: none; flex: 1;"></select>
+              <div class="document-selector" style="padding: 10px 16px; background: var(--bg-surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; border-radius: 12px 12px 0 0;">
+                  <label style="font-size: 0.85rem; color: var(--text-muted);">📄 Document ciblé :</label>
+                  <select id="chat-pdf-select" style="background: var(--bg-hover); border: 1px solid var(--border); border-radius: 8px; color: var(--text-main); padding: 6px 12px; font-size: 0.85rem; outline: none; flex: 1; cursor: pointer;"></select>
               </div>
 
               <!-- Messages -->
@@ -304,10 +283,22 @@
                 </div>
               </div>
 
-              <!-- Barre de saisie -->
-              <div class="chat-input-bar">
-                <input type="text" id="chat-input" placeholder="Posez votre question ici..." onkeydown="if(event.key==='Enter') doChat()"/>
-                <button class="btn-send" onclick="doChat()">➤</button>
+              <!-- Barre de saisie (Gemini Input) -->
+              <div class="gemini-input-container">
+                  <input type="text" id="chat-input" placeholder="Demander à StudySearch..." onkeydown="if(event.key==='Enter') doChat()"/>
+
+                  <div class="model-selector-container">
+                      <button id="btn-model-selector" onclick="toggleModelMenu()">Mode Résumé ⌄</button>
+                      <div id="model-menu" class="model-menu hidden">
+                          <div class="model-option" onclick="selectMode('resume', 'Mode Résumé')">
+                              <strong>Mode Résumé</strong><span>Génère un résumé global</span>
+                          </div>
+                          <div class="model-option" onclick="selectMode('recherche', 'Mode Recherche')">
+                              <strong>Mode Recherche</strong><span>Trouve l'extrait exact</span>
+                          </div>
+                      </div>
+                  </div>
+                  <button class="btn-send-gemini" onclick="doChat()">➤</button>
               </div>
 
             </div>
