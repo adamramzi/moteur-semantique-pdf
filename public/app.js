@@ -751,25 +751,36 @@ window.toggleTheme = function() {
 
 // ── Account Deletion ────────────────────────────────────────
 window.deleteAccount = async function() {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer définitivement votre compte et vos documents ?")) return;
+    if (!confirm("Êtes-vous sûr de vouloir supprimer définitivement votre compte et toutes vos données ? Cette action est irréversible.")) return;
+
     try {
-        loading(true, 'Suppression du compte…');
-        const res = await fetch('/api/user', {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/user', {
             method: 'DELETE',
-            headers: {
-                'Authorization': 'Bearer ' + token
-            }
+            headers: { 'Authorization': 'Bearer ' + token }
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-            throw new Error(data.detail || 'Erreur lors de la suppression du compte');
+
+        if (response.ok) {
+            // 1. Fermer immédiatement la modale de réglages
+            closeSettingsModal();
+
+            // 2. Vider toutes les données d'authentification locales
+            localStorage.clear();
+
+            // 3. Masquer l'écran Dashboard et basculer sur l'écran d'accueil
+            const dashboardScreen = document.getElementById('dashboard-screen');
+            const homeScreen = document.getElementById('home-screen');
+
+            if (dashboardScreen) dashboardScreen.classList.remove('active');
+            if (homeScreen) homeScreen.classList.add('active');
+
+            alert("Votre compte a été supprimé avec succès.");
+        } else {
+            alert("Erreur lors de la suppression du compte.");
         }
-        toast('Votre compte a été supprimé avec succès.', 'success');
-        logout();
-    } catch (e) {
-        toast(e.message, 'error');
-    } finally {
-        loading(false);
+    } catch (error) {
+        console.error("Erreur:", error);
+        alert("Impossible de joindre le serveur.");
     }
 };
 
