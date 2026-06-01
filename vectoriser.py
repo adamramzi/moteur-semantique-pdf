@@ -9,76 +9,42 @@ Compatible Vercel (pas de PyTorch / sentence-transformers).
 import os
 import pickle
 import numpy as np
-import requests
+from sentence_transformers import SentenceTransformer
 import time
 
 # ── Configuration ─────────────────────────────────────────────
-HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-mpnet-base-v2"
-HF_API_TOKEN = os.getenv("HF_API_TOKEN", "")
+# Variable globale pour l'initialisation paresseuse du modèle local
+_local_model = None
 
-# Retry settings
-MAX_RETRIES = 3
-RETRY_DELAY = 2  # seconds
+def get_local_model():
+    """
+    Retourne l'instance globale du modèle SentenceTransformer en local (Lazy Loading).
+    """
+    global _local_model
+    if _local_model is None:
+        print("[Embeddings] Chargement du modèle local sentence-transformers/all-MiniLM-L6-v2...")
+        _local_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    return _local_model
 
 
 def _embed_batch(texts, batch_size=32):
     """
-    Envoie les textes par batches à l'API HuggingFace via le client officiel.
+    Calcule les embeddings en local pur avec SentenceTransformer.
     """
-    token = os.getenv("HF_API_TOKEN", "").strip()
-    if not token:
-        raise ValueError(
-            "Le token d'accès Hugging Face (HF_API_TOKEN) est manquant. "
-            "Veuillez ajouter 'HF_API_TOKEN' dans vos variables d'environnement Vercel !"
-        )
-    
-    from huggingface_hub import InferenceClient
-    client = InferenceClient(token=token)
-    
-    all_embeddings = []
-    # Le nom exact du modèle
-    model_id = "sentence-transformers/all-mpnet-base-v2"
-
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i + batch_size]
-        
-        for attempt in range(MAX_RETRIES):
-            try:
-                # Le client gère automatiquement le bon endpoint (feature-extraction)
-                output = client.feature_extraction(batch, model=model_id)
-                # L'output est un objet ou une liste de listes. On le convertit.
-                embeddings = np.array(output, dtype=np.float32)
-                all_embeddings.append(embeddings)
-                break
-            except Exception as e:
-                if attempt < MAX_RETRIES - 1:
-                    time.sleep(RETRY_DELAY * (attempt + 1))
-                else:
-                    raise Exception(f"Erreur HuggingFace API après retries : {e}")
-
-    if all_embeddings:
-        return np.vstack(all_embeddings)
-    return np.array([], dtype=np.float32)
+    model = get_local_model()
+    return model.encode(texts, batch_size=batch_size, convert_to_numpy=True)
 
 
 def get_model():
     """
-    Placeholder pour compatibilité.
-    L'embedding est maintenant fait via l'API, pas de modèle local.
-    Retourne un objet avec une méthode encode().
+    Retourne le modèle d'embeddings pour l'encodage des requêtes.
     """
-    class HFAPIModel:
-        def encode(self, texts, convert_to_numpy=True):
-            if isinstance(texts, str):
-                texts = [texts]
-            return _embed_batch(texts)
-
-    return HFAPIModel()
+    return get_local_model()
 
 
 def vectoriser_chunks(chunks, batch_size=32):
     """
-    Encode les chunks en embeddings numpy par lots (Batch Processing) via l'API HuggingFace.
+    Encode les chunks en embeddings numpy par lots (Batch Processing) via le modèle SentenceTransformer local.
 
     Args:
         chunks: Liste de chaînes de texte ou de dictionnaires contenant une clé 'texte'.
@@ -93,7 +59,7 @@ def vectoriser_chunks(chunks, batch_size=32):
     # Extraire le texte brut si ce sont des dictionnaires
     textes = [c["texte"] if isinstance(c, dict) else c for c in chunks]
     
-    print(f"[Embeddings] Lancement de la vectorisation par lots (taille du lot : {batch_size}) pour {len(textes)} passages...")
+    print(f"[Embeddings] Lancement de la vectorisation locale par lots (taille : {batch_size}) pour {len(textes)} passages...")
     return _embed_batch(textes, batch_size=batch_size)
 
 

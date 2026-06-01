@@ -827,6 +827,11 @@ def nettoyer_utilisateurs_inactifs(jours: int = 30, index_base: str = "index_fai
 
 
 def sauvegarder_index_db(user_id: int, vecteurs, chunks):
+    # ── OPTIMISATION DATA ENGINEERING (BULK WRITE) ──────────────────
+    # Au lieu d'effectuer des écritures individuelles en boucle pour chaque chunk (ce qui
+    # multiplierait les transactions et ralentirait l'ingestion), l'index vectoriel et les
+    # métadonnées des chunks sont sérialisés d'un coup avec pickle, puis persistés en
+    # UNE SEULE opération SQL unifiée (bulk write) pour des performances maximales.
     init_db()
     conn = get_db_connection()
     cursor = conn.cursor()

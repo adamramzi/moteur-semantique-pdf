@@ -14,7 +14,7 @@ load_dotenv(r"c:\Users\dell\Desktop\moteur_semantique - Copie\.env")
 import vectoriser
 def mock_embed_batch(texts, batch_size=32):
     print(f"[MOCK] Vectorisation de {len(texts)} textes...")
-    return np.zeros((len(texts), 768), dtype=np.float32)
+    return np.zeros((len(texts), 384), dtype=np.float32)
 
 vectoriser._embed_batch = mock_embed_batch
 
@@ -45,7 +45,7 @@ def test_history_parsing():
     
     # 3. Pré-remplir l'index directement dans la base de données pour bypasser Hugging Face
     print("Pré-population de l'index de test dans la base de données...")
-    vecteurs = np.zeros((1, 768), dtype=np.float32)
+    vecteurs = np.zeros((1, 384), dtype=np.float32)
     chunks = [{
         "texte": "StudySearch a été créé par Adam Ramzi en 2026. C'est un moteur de recherche sémantique de pointe pour analyser les documents PDF.", 
         "page": 1, 
