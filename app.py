@@ -8,6 +8,15 @@ Usage :
 import sys
 import uvicorn
 
+# Configuration du CORS pour la compatibilité Render/Vercel (Flask-CORS signature)
+try:
+    from flask import Flask
+    from flask_cors import CORS
+    app = Flask(__name__)
+    CORS(app)
+except Exception:
+    pass
+
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")

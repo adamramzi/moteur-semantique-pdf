@@ -1,5 +1,6 @@
 // ── État global ─────────────────────────────────────────────
-const API = '/api';
+const API_BASE_URL = "https://studysearch-api.onrender.com";
+const API = `${API_BASE_URL}/api`;
 let token = localStorage.getItem('token') || '';
 let userEmail = localStorage.getItem('email') || '';
 let regEmail = '';
@@ -799,7 +800,7 @@ window.deleteAccount = async function() {
 
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch('/api/user', {
+        const response = await fetch(`${API_BASE_URL}/api/user`, {
             method: 'DELETE',
             headers: { 'Authorization': 'Bearer ' + token }
         });
