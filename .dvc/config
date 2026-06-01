@@ -1,0 +1,4 @@
+[core]
+    remote = mylocalremote
+['remote "mylocalremote"']
+    url = c:\Users\dell\Desktop\dvc_remote

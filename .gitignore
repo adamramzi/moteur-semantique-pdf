@@ -10,3 +10,5 @@ users.db
 resultats_tests.txt
 mlruns/
 
+/data
+/index_faiss
