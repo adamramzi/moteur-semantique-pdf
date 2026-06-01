@@ -12,7 +12,7 @@ Supporte :
 """
 
 import os
-import fitz
+from pypdf import PdfReader
 import docx
 import pptx
 import openpyxl
@@ -21,11 +21,11 @@ from striprtf.striprtf import rtf_to_text
 
 def extraire_texte_pdf(pdf_path):
     nom_fichier = os.path.basename(pdf_path)
-    doc = fitz.open(pdf_path)
     paragraphes = []
     try:
-        for num_page, page in enumerate(doc, start=1):
-            texte = page.get_text()
+        reader = PdfReader(pdf_path)
+        for num_page, page in enumerate(reader.pages, start=1):
+            texte = page.extract_text()
             if texte:
                 texte = " ".join(texte.split())
                 if texte:
@@ -34,8 +34,8 @@ def extraire_texte_pdf(pdf_path):
                         "page": num_page,
                         "fichier": nom_fichier,
                     })
-    finally:
-        doc.close()
+    except Exception as e:
+        print(f"Erreur d'extraction PDF pour {nom_fichier}: {e}")
     return paragraphes
 
 
