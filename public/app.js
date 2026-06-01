@@ -710,7 +710,7 @@ async function doChat() {
             let reponse = '<strong>🔍 Extraits pertinents :</strong><br><br>';
             if (data.resultats && data.resultats.length > 0) {
                 data.resultats.forEach((r, i) => {
-                    reponse += `<strong>Extrait ${i+1}</strong> — ${(r.score*100).toFixed(1)}% pertinence<br><em>Page ${r.page || '?'}</em><br>${r.texte}<br><br>`;
+                    reponse += `<strong>Extrait ${i+1}</strong> — ${(r.score*100).toFixed(1)}% pertinence<br><br>${r.texte}<br><br>`;
                 });
                 botResponse = { role: 'bot', content: reponse, mode: 'recherche', score: data.resultats[0].score };
             } else {
