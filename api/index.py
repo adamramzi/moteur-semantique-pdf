@@ -61,6 +61,21 @@ JWT_EXPIRATION_HOURS = 24
 INDEX_BASE = "/tmp/index_faiss" if (os.getenv("VERCEL") or not os.access(".", os.W_OK)) else "index_faiss"
 TOP_K = 3
 
+SYSTEM_PROMPT_TEMPLATE = """Tu es un assistant académique expert. Tu dois répondre à la question de l'utilisateur EN TE BASANT UNIQUEMENT sur le contexte fourni ci-dessous.
+
+Instructions strictes :
+- Si l'information permettant de répondre à la question NE SE TROUVE PAS dans le contexte, tu DOIS répondre exactement par : 'Je ne trouve pas cette information dans vos documents.', sans essayer d'inventer une réponse.
+- Ne fournis pas de préambule, réponds directement à la question de manière claire et concise.
+- Si tu utilises une information, tu dois OBLIGATOIREMENT citer le nom du fichier PDF source.
+
+CONTEXTE :
+{context}
+
+QUESTION :
+{question}
+
+RÉPONSE :"""
+
 # ── App FastAPI ──────────────────────────────────────────────
 app = FastAPI(title="StudySearch", version="2.0")
 
@@ -510,14 +525,14 @@ async def chat(data: ChatRequest, request: Request):
 
         score_du_meilleur_chunk = resultats[0]["score"]
 
-        # Concaténer le contexte des 3 meilleurs chunks
+        # Concaténer le contexte des 3 meilleurs chunks (en incluant le nom de fichier source)
         cibles = resultats
         if data.pdf_name:
             cibles = [r for r in resultats if r.get("fichier") == data.pdf_name]
             if not cibles:
                 cibles = resultats
 
-        contexte = "\n\n".join([f"Extrait {i+1} : {r['texte']}" for i, r in enumerate(cibles[:3])])
+        contexte = "\n\n".join([f"Extrait {i+1} (Source PDF: {r.get('fichier', 'inconnu')}) : {r['texte']}" for i, r in enumerate(cibles[:3])])
 
         if not groq_client:
             raise HTTPException(
@@ -545,18 +560,13 @@ async def chat(data: ChatRequest, request: Request):
             if lignes_historique:
                 historique_str = "\nHISTORIQUE DE LA CONVERSATION :\n" + "\n".join(lignes_historique) + "\n"
 
+        # Assembler le contexte complet (avec historique si présent)
+        context_complet = contexte
+        if historique_str:
+            context_complet += "\n" + historique_str
+
         try:
-            prompt = f"""Tu es un assistant expert chargé de répondre à des questions sur un document.
-Utilise UNIQUEMENT le contexte fourni ci-dessous pour répondre à la question de manière claire et précise.
-Si la réponse ne se trouve pas dans le contexte, dis-le poliment mais fermement, sans rien inventer.
-
-CONTEXTE :
-{contexte}
-{historique_str}
-QUESTION :
-{query}
-
-RÉPONSE :"""
+            prompt = SYSTEM_PROMPT_TEMPLATE.format(context=context_complet, question=query)
             # ── Génération LLM ──
             debut_llm = time.time()
             response = groq_client.chat.completions.create(
