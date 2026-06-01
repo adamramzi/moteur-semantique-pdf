@@ -10,6 +10,8 @@ import shutil
 from datetime import datetime, timedelta
 from typing import List, Optional
 from groq import Groq
+import time
+import mlflow
 
 # Initialisation sécurisée du client Groq
 try:
@@ -486,52 +488,65 @@ async def chat(data: ChatRequest, request: Request):
     if not query:
         raise HTTPException(status_code=400, detail="Veuillez saisir une question.")
 
-    model = get_model()
-    query_vector = model.encode([query])[0]
-    resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+    with mlflow.start_run():
+        mlflow.log_param("model_name", "llama-3.1-8b-instant")
+        mlflow.log_param("embedding_model", "all-mpnet-base-v2")
+        mlflow.log_param("query", query)
+        if data.pdf_name:
+            mlflow.log_param("pdf_name", data.pdf_name)
 
-    if not resultats:
-        raise HTTPException(status_code=404, detail="Aucun passage pertinent trouvé dans le document.")
-
-    score_du_meilleur_chunk = resultats[0]["score"]
-
-    # Concaténer le contexte des 3 meilleurs chunks
-    cibles = resultats
-    if data.pdf_name:
-        cibles = [r for r in resultats if r.get("fichier") == data.pdf_name]
-        if not cibles:
-            cibles = resultats
-
-    contexte = "\n\n".join([f"Extrait {i+1} : {r['texte']}" for i, r in enumerate(cibles[:3])])
-
-    if not groq_client:
-        raise HTTPException(
-            status_code=500,
-            detail="Le client Groq n'est pas initialisé. Vérifiez GROQ_API_KEY."
-        )
-
-    # Traitement de l'historique conversationnel
-    historique_str = ""
-    if data.history:
-        lignes_historique = []
-        for msg in data.history:
-            role = msg.get("role")
-            content = msg.get("content", "").strip()
-            
-            if not content or "typing-indicator" in content:
-                continue
-            
-            if role == "user" and content == query:
-                continue
-                
-            role_label = "Utilisateur" if role == "user" else "Assistant"
-            lignes_historique.append(f"{role_label}: {content}")
+        # ── Recherche Vectorielle ──
+        debut_v = time.time()
+        model = get_model()
+        query_vector = model.encode([query])[0]
+        resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+        fin_v = time.time()
         
-        if lignes_historique:
-            historique_str = "\nHISTORIQUE DE LA CONVERSATION :\n" + "\n".join(lignes_historique) + "\n"
+        temps_v = fin_v - debut_v
+        mlflow.log_metric("vector_search_latency", temps_v)
 
-    try:
-        prompt = f"""Tu es un assistant expert chargé de répondre à des questions sur un document.
+        if not resultats:
+            raise HTTPException(status_code=404, detail="Aucun passage pertinent trouvé dans le document.")
+
+        score_du_meilleur_chunk = resultats[0]["score"]
+
+        # Concaténer le contexte des 3 meilleurs chunks
+        cibles = resultats
+        if data.pdf_name:
+            cibles = [r for r in resultats if r.get("fichier") == data.pdf_name]
+            if not cibles:
+                cibles = resultats
+
+        contexte = "\n\n".join([f"Extrait {i+1} : {r['texte']}" for i, r in enumerate(cibles[:3])])
+
+        if not groq_client:
+            raise HTTPException(
+                status_code=500,
+                detail="Le client Groq n'est pas initialisé. Vérifiez GROQ_API_KEY."
+            )
+
+        # Traitement de l'historique conversationnel
+        historique_str = ""
+        if data.history:
+            lignes_historique = []
+            for msg in data.history:
+                role = msg.get("role")
+                content = msg.get("content", "").strip()
+                
+                if not content or "typing-indicator" in content:
+                    continue
+                
+                if role == "user" and content == query:
+                    continue
+                    
+                role_label = "Utilisateur" if role == "user" else "Assistant"
+                lignes_historique.append(f"{role_label}: {content}")
+            
+            if lignes_historique:
+                historique_str = "\nHISTORIQUE DE LA CONVERSATION :\n" + "\n".join(lignes_historique) + "\n"
+
+        try:
+            prompt = f"""Tu es un assistant expert chargé de répondre à des questions sur un document.
 Utilise UNIQUEMENT le contexte fourni ci-dessous pour répondre à la question de manière claire et précise.
 Si la réponse ne se trouve pas dans le contexte, dis-le poliment mais fermement, sans rien inventer.
 
@@ -542,24 +557,34 @@ QUESTION :
 {query}
 
 RÉPONSE :"""
-        response = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",
-            temperature=0.3,
-        )
-        reponse_groq = response.choices[0].message.content.strip()
+            # ── Génération LLM ──
+            debut_llm = time.time()
+            response = groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.1-8b-instant",
+                temperature=0.3,
+            )
+            reponse_groq = response.choices[0].message.content.strip()
+            fin_llm = time.time()
+            
+            temps_llm = fin_llm - debut_llm
+            mlflow.log_metric("llm_generation_latency", temps_llm)
+            
+            # Enregistrer les textes comme artefacts
+            mlflow.log_text(prompt, "prompt.txt")
+            mlflow.log_text(reponse_groq, "response.txt")
 
-        # Sauvegarder la recherche dans la DB
-        nom_pdf = data.pdf_name or "document"
-        sauvegarder_recherche(user_id, nom_pdf, query, reponse_groq, score_du_meilleur_chunk)
+            # Sauvegarder la recherche dans la DB
+            nom_pdf = data.pdf_name or "document"
+            sauvegarder_recherche(user_id, nom_pdf, query, reponse_groq, score_du_meilleur_chunk)
 
-        return {"reponse": reponse_groq, "score": float(score_du_meilleur_chunk)}
-    except Exception as e:
-        print("Erreur d'appel à Groq:", e)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur du service d'IA : {str(e)}"
-        )
+            return {"reponse": reponse_groq, "score": float(score_du_meilleur_chunk)}
+        except Exception as e:
+            print("Erreur d'appel à Groq:", e)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erreur du service d'IA : {str(e)}"
+            )
 
 
 @app.get("/api/search/history/{filename}")

@@ -8,3 +8,5 @@ users.db
 *.pkl
 .DS_Store
 resultats_tests.txt
+mlruns/
+
