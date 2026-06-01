@@ -1,7 +1,7 @@
 import requests
 import json
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:5000"
 
 def test_flow():
     print("1. Logging in as test@exemple.com...")

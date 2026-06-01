@@ -17,7 +17,7 @@ Entièrement repensée pour fonctionner sur Vercel avec une architecture Serverl
 | Composant | Rôle |
 |---|---|
 | `FastAPI` | Backend API (routes, sécurité, endpoints) |
-| `HuggingFace API` | Modèle `all-mpnet-base-v2` pour la vectorisation sans surcharger le serveur |
+| `SentenceTransformer` | Modèle local `all-MiniLM-L6-v2` pour la vectorisation sans surcharger le réseau |
 | `SQLite` / `JWT` | Base de données locale pour la gestion des utilisateurs et authentification sécurisée |
 | `Brevo` | Envoi des emails de vérification |
 | `HTML/CSS/JS Vanilla` | Frontend moderne, rapide et responsive |
@@ -28,7 +28,7 @@ Entièrement repensée pour fonctionner sur Vercel avec une architecture Serverl
 2. **Installer les dépendances** : `pip install -r requirements.txt`
 3. **Créer un fichier `.env`** avec vos clés : `HF_API_TOKEN`, `BREVO_API_KEY`, `EMAIL_SENDER`
 4. **Lancer le serveur** : `python app.py` (ou `uvicorn api.index:app --reload`)
-5. Ouvrez `http://localhost:8000`
+5. Ouvrez `http://localhost:5000`
 
 ## ☁️ Déploiement sur Vercel
 

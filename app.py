@@ -8,19 +8,10 @@ Usage :
 import sys
 import uvicorn
 
-# Configuration du CORS pour la compatibilité Render/Vercel (Flask-CORS signature)
-try:
-    from flask import Flask
-    from flask_cors import CORS
-    app = Flask(__name__)
-    CORS(app)
-except Exception:
-    pass
-
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     print("StudySearch - Démarrage...")
-    print("Serveur : http://localhost:8000")
+    print("Serveur : http://localhost:5000")
     print("-" * 40)
-    uvicorn.run("api.index:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("api.index:app", host="0.0.0.0", port=5000, reload=True)
