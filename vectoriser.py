@@ -76,17 +76,25 @@ def get_model():
     return HFAPIModel()
 
 
-def vectoriser_chunks(chunks):
+def vectoriser_chunks(chunks, batch_size=32):
     """
-    Encode les chunks en embeddings numpy via l'API HuggingFace.
+    Encode les chunks en embeddings numpy par lots (Batch Processing) via l'API HuggingFace.
 
     Args:
-        chunks: Liste de chaînes de texte.
+        chunks: Liste de chaînes de texte ou de dictionnaires contenant une clé 'texte'.
+        batch_size: Taille des lots de traitement (défaut: 32).
 
     Returns:
         numpy array de shape (n_chunks, embedding_dim).
     """
-    return _embed_batch(chunks)
+    if not chunks:
+        return np.array([], dtype=np.float32)
+
+    # Extraire le texte brut si ce sont des dictionnaires
+    textes = [c["texte"] if isinstance(c, dict) else c for c in chunks]
+    
+    print(f"[Embeddings] Lancement de la vectorisation par lots (taille du lot : {batch_size}) pour {len(textes)} passages...")
+    return _embed_batch(textes, batch_size=batch_size)
 
 
 def creer_index(vecteurs):
