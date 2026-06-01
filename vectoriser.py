@@ -2,89 +2,48 @@
 vectoriser.py — Embeddings et recherche sémantique
 StudySearch
 
-Utilise l'API HuggingFace Inference (gratuite) pour générer les embeddings.
-Compatible Vercel (pas de PyTorch / sentence-transformers).
+Utilise sentence-transformers en local pour générer les embeddings.
 """
 
 import os
 import pickle
 import numpy as np
-import requests
+from sentence_transformers import SentenceTransformer
 import time
 
 # ── Configuration ─────────────────────────────────────────────
-HF_API_URL = "https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2"
+# Variable globale pour l'initialisation paresseuse du modèle local
+_local_model = None
+
+def get_local_model():
+    """
+    Retourne l'instance globale du modèle SentenceTransformer en local (Lazy Loading).
+    """
+    global _local_model
+    if _local_model is None:
+        print("[Embeddings] Chargement du modèle local sentence-transformers/all-MiniLM-L6-v2...")
+        _local_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+    return _local_model
 
 
 def _embed_batch(texts, batch_size=32):
     """
-    Envoie les textes par batches à l'API d'Inférence Hugging Face via requests.
+    Calcule les embeddings en local pur avec SentenceTransformer.
     """
-    token = os.environ.get("HF_TOKEN") or os.environ.get("HF_API_TOKEN", "")
-    token = token.strip() if token else ""
-    
-    headers = {}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-        
-    all_embeddings = []
-    
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i + batch_size]
-        
-        # Robust retry logic
-        max_retries = 3
-        retry_delay = 2
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(
-                    HF_API_URL,
-                    headers=headers,
-                    json={"inputs": batch, "options": {"wait_for_model": True}},
-                    timeout=30
-                )
-                if response.status_code == 200:
-                    embeddings = response.json()
-                    all_embeddings.append(np.array(embeddings, dtype=np.float32))
-                    break
-                else:
-                    try:
-                        err_msg = response.json()
-                    except Exception:
-                        err_msg = response.text
-                    raise Exception(f"HF API returned status {response.status_code}: {err_msg}")
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay * (attempt + 1))
-                else:
-                    raise Exception(f"Erreur HuggingFace Inference API après {max_retries} tentatives : {e}")
-
-    if all_embeddings:
-        return np.vstack(all_embeddings)
-    return np.array([], dtype=np.float32)
+    model = get_local_model()
+    return model.encode(texts, batch_size=batch_size, convert_to_numpy=True)
 
 
 def get_model():
     """
-    Retourne un objet avec une méthode encode() pour compatibilité avec l'appelant.
+    Retourne le modèle d'embeddings pour l'encodage des requêtes.
     """
-    class HFAPIModel:
-        def encode(self, texts, convert_to_numpy=True):
-            if isinstance(texts, str):
-                texts = [texts]
-              
-            # Direct numpy output conversion
-            res = _embed_batch(texts)
-            if convert_to_numpy:
-                return res
-            return res.tolist()
-
-    return HFAPIModel()
+    return get_local_model()
 
 
 def vectoriser_chunks(chunks, batch_size=32):
     """
-    Encode les chunks en embeddings numpy par lots (Batch Processing) via l'API HuggingFace Inference.
+    Encode les chunks en embeddings numpy par lots (Batch Processing) via le modèle SentenceTransformer local.
 
     Args:
         chunks: Liste de chaînes de texte ou de dictionnaires contenant une clé 'texte'.
@@ -99,7 +58,7 @@ def vectoriser_chunks(chunks, batch_size=32):
     # Extraire le texte brut si ce sont des dictionnaires
     textes = [c["texte"] if isinstance(c, dict) else c for c in chunks]
     
-    print(f"[Embeddings] Lancement de la vectorisation par lots via API HF (taille : {batch_size}) pour {len(textes)} passages...")
+    print(f"[Embeddings] Lancement de la vectorisation locale par lots (taille : {batch_size}) pour {len(textes)} passages...")
     return _embed_batch(textes, batch_size=batch_size)
 
 

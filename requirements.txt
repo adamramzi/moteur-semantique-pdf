@@ -16,5 +16,10 @@ libsql
 huggingface_hub
 groq
 mlflow
-
-
+sentence-transformers
+torch
+torchvision
+torchaudio
+transformers
+accelerate
+chromadb
