@@ -127,6 +127,7 @@ class ChatRequest(BaseModel):
     query: str
     mode: str
     pdf_name: Optional[str] = None
+    history: Optional[List[dict]] = None
 
 class TitleRequest(BaseModel):
     query: str
@@ -509,6 +510,26 @@ async def chat(data: ChatRequest, request: Request):
             detail="Le client Groq n'est pas initialisé. Vérifiez GROQ_API_KEY."
         )
 
+    # Traitement de l'historique conversationnel
+    historique_str = ""
+    if data.history:
+        lignes_historique = []
+        for msg in data.history:
+            role = msg.get("role")
+            content = msg.get("content", "").strip()
+            
+            if not content or "typing-indicator" in content:
+                continue
+            
+            if role == "user" and content == query:
+                continue
+                
+            role_label = "Utilisateur" if role == "user" else "Assistant"
+            lignes_historique.append(f"{role_label}: {content}")
+        
+        if lignes_historique:
+            historique_str = "\nHISTORIQUE DE LA CONVERSATION :\n" + "\n".join(lignes_historique) + "\n"
+
     try:
         prompt = f"""Tu es un assistant expert chargé de répondre à des questions sur un document.
 Utilise UNIQUEMENT le contexte fourni ci-dessous pour répondre à la question de manière claire et précise.
@@ -516,7 +537,7 @@ Si la réponse ne se trouve pas dans le contexte, dis-le poliment mais fermement
 
 CONTEXTE :
 {contexte}
-
+{historique_str}
 QUESTION :
 {query}
 

@@ -935,27 +935,32 @@ body.light-mode {
     100% { background-color: transparent; }
 }
 
-/* Nouveau style discret pour le bouton "Effacer tous mes documents" */
-#btn-reset {
-    background-color: transparent;
-    color: #ff4d4d;
+/* Style unifié pour tous les boutons de suppression critiques (sidebar) */
+.text-danger-btn {
+    background-color: transparent !important;
+    color: #ff4d4d !important;
     border: none;
-    padding: 10px 16px;
+    padding: 10px 15px;
     border-radius: 20px;
-    font-size: 0.88rem;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     cursor: pointer;
-    transition: background-color 0.2s, color 0.2s;
+    font-size: 0.95rem;
+    transition: background-color 0.2s ease, color 0.2s ease;
     width: 100%;
-    font-weight: 500;
     font-family: inherit;
+    font-weight: 500;
 }
 
-#btn-reset:hover {
-    background-color: #ff4d4d20 !important;
-    color: #ffffff !important;
+/* Au survol : fond gris uni identique aux autres boutons de la sidebar */
+.text-danger-btn:hover {
+    background-color: var(--bg-hover) !important;
+    color: #ff6666 !important;
+}
+
+.text-danger-btn:active {
+    transform: scale(0.98);
 }
 
 

@@ -483,6 +483,9 @@ function ouvrirConversation(id) {
     currentConvId = convo.id;
     messagesChat = [...convo.messages];
     
+    // Synchroniser chatHistory avec l'historique de cette conversation
+    chatHistory = convo.messages ? convo.messages.filter(m => !m.isTyping && !m.content.startsWith('❌ Erreur')).map(m => ({ role: m.role, content: m.content })) : [];
+    
     pdfActif = convo.pdf_name || "";
     updateDocumentDropdown();
     
@@ -571,6 +574,7 @@ window.deleteDoc = async (name) => {
 // ── Chat Section ────────────────────────────────────────────
 let chatMode = 'resume'
 let messagesChat = []
+let chatHistory = []
 
 function selectMode(modeId, modeName) {
     chatMode = modeId;
@@ -591,6 +595,7 @@ window.toggleModelMenu = toggleModelMenu;
 function nouvelleConversation() {
     currentConvId = Date.now().toString(); // ID temporaire
     messagesChat = [];
+    chatHistory = []; // Réinitialise l'historique conversationnel
     pdfActif = ""; // Réinitialise le document
 
     localStorage.removeItem('activeConversationId');
@@ -659,6 +664,7 @@ async function doChat() {
     
     const userMsg = { role: 'user', content: query };
     messagesChat.push(userMsg);
+    chatHistory.push({ role: 'user', content: query });
     
     saveCurrentConversation();
     
@@ -688,8 +694,17 @@ async function doChat() {
     try {
         let botResponse = null;
         if (chatMode === 'resume') {
-            const data = await api('/chat', { method: 'POST', body: JSON.stringify({ query, mode: 'resume', pdf_name: pdfActif }) });
+            const data = await api('/chat', { 
+                method: 'POST', 
+                body: JSON.stringify({ 
+                    query, 
+                    mode: 'resume', 
+                    pdf_name: pdfActif,
+                    history: chatHistory 
+                }) 
+            });
             botResponse = { role: 'bot', content: data.reponse, mode: 'resume', score: data.score };
+            chatHistory.push({ role: 'bot', content: data.reponse });
         } else {
             const data = await api('/search', { method: 'POST', body: JSON.stringify({ query, pdf_name: pdfActif }) });
             let reponse = '<strong>🔍 Extraits pertinents :</strong><br><br>';
@@ -701,6 +716,7 @@ async function doChat() {
             } else {
                 botResponse = { role: 'bot', content: '❌ Aucun extrait trouvé.', mode: 'recherche', score: 0 };
             }
+            chatHistory.push({ role: 'bot', content: botResponse.content });
         }
 
         // Retirer l'indicateur de frappe
@@ -708,6 +724,10 @@ async function doChat() {
         messagesChat.push(botResponse);
 
     } catch (error) {
+        // Nettoyer chatHistory en enlevant la dernière question qui a échoué
+        if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
+            chatHistory.pop();
+        }
         // Retirer l'indicateur de frappe en cas d'erreur
         messagesChat = messagesChat.filter(m => !m.isTyping);
         messagesChat.push({ role: 'bot', content: '❌ Erreur : ' + error.message, mode: chatMode, score: 0 });
