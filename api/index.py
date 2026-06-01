@@ -12,6 +12,8 @@ from typing import List, Optional
 from groq import Groq
 import time
 import mlflow
+import asyncio
+import concurrent.futures
 
 # Initialisation sécurisée du client Groq
 try:
@@ -301,6 +303,31 @@ def delete_user(current_user = Depends(get_current_user)):
     return {"message": "Compte supprimé avec succès"}
 
 
+def traiter_et_extraire(filename, content):
+    """
+    Fonction worker synchrone exécutée en parallèle pour chaque document.
+    Crée un fichier temporaire, en extrait le texte brut, et le découpe en chunks.
+    """
+    ext = os.path.splitext(filename)[1].lower()
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        paragraphes = extraire_texte(tmp_path)
+        if paragraphes:
+            for p in paragraphes:
+                p["fichier"] = filename
+            chunks = decouper_chunks(paragraphes)
+            return filename, chunks, ext
+        return filename, [], ext
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+
+
 # ── Routes Documents ────────────────────────────────────────
 @app.post("/api/upload")
 async def upload_files(request: Request, files: List[UploadFile] = File(...)):
@@ -317,35 +344,37 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
                     fname = c.get("fichier", "unknown")
                     chunks_par_fichier.setdefault(fname, []).append(c)
 
+        # ── Parallélisation de la lecture des fichiers (I/O Async) ──
+        async def lire_fichier(f: UploadFile):
+            content = await f.read()
+            return f.filename, content
+
+        taches_lecture = [lire_fichier(f) for f in files if f.filename not in chunks_par_fichier]
+        
+        # Exécuter les lectures de flux I/O en parallèle
+        documents_lus = []
+        if taches_lecture:
+            documents_lus = await asyncio.gather(*taches_lecture)
+
         nouveaux_docs = 0
-        for uploaded_file in files:
-            if uploaded_file.filename in chunks_par_fichier:
-                continue  # Déjà indexé
-
-            ext = os.path.splitext(uploaded_file.filename)[1].lower()
-            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-                content = await uploaded_file.read()
-                tmp.write(content)
-                tmp_path = tmp.name
-
-            try:
-                paragraphes = extraire_texte(tmp_path)
-                if not paragraphes:
-                    continue
+        if documents_lus:
+            # ── Parallélisation CPU de l'extraction de texte (ThreadPoolExecutor) ──
+            # Comme PyMuPDF (fitz) est une lib en C compilé, elle relâche le GIL lors de l'extraction,
+            # offrant un parallélisme multi-cœur réel sur le processeur !
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                taches_futures = {
+                    executor.submit(traiter_et_extraire, fname, fcontent): fname
+                    for fname, fcontent in documents_lus
+                }
                 
-                # Correction du nom de fichier interne si nécessaire pour le chunks
-                for p in paragraphes:
-                    p["fichier"] = uploaded_file.filename
-                    
-                chunks = decouper_chunks(paragraphes)
-                chunks_par_fichier[uploaded_file.filename] = chunks
-                
-                # type_fichier est l'extension sans le point, majuscule (PDF, DOCX, etc)
-                type_fichier = ext.replace(".", "").upper()
-                sauvegarder_document(user_id, uploaded_file.filename, len(chunks), type_fichier=type_fichier)
-                nouveaux_docs += 1
-            finally:
-                os.unlink(tmp_path)
+                for future in concurrent.futures.as_completed(taches_futures):
+                    fname, chunks, ext = future.result()
+                    if chunks:
+                        chunks_par_fichier[fname] = chunks
+                        type_fichier = ext.replace(".", "").upper()
+                        # Enregistrer le document dans la DB
+                        sauvegarder_document(user_id, fname, len(chunks), type_fichier=type_fichier)
+                        nouveaux_docs += 1
 
         # Reconstruire l'index complet
         all_chunks = [c for cl in chunks_par_fichier.values() for c in cl]
