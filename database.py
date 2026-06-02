@@ -112,17 +112,20 @@ class LibsqlConnectionWrapper:
 
 
 def get_db_connection():
-    url = _os.getenv("TURSO_DATABASE_URL")
-    token = _os.getenv("TURSO_AUTH_TOKEN")
-    if url:
-        import libsql
-        if token:
-            conn = libsql.connect(url, auth_token=token)
-        else:
-            conn = libsql.connect(url)
-        return LibsqlConnectionWrapper(conn)
-    else:
-        return sqlite3.connect(DB_PATH)
+    # Pour un fonctionnement 100% local (hors-ligne), on privilégie SQLite local (users.db).
+    # On n'utilise Turso DB que si l'application s'exécute sur Vercel.
+    if _os.getenv("VERCEL"):
+        url = _os.getenv("TURSO_DATABASE_URL")
+        token = _os.getenv("TURSO_AUTH_TOKEN")
+        if url:
+            import libsql
+            if token:
+                conn = libsql.connect(url, auth_token=token)
+            else:
+                conn = libsql.connect(url)
+            return LibsqlConnectionWrapper(conn)
+            
+    return sqlite3.connect(DB_PATH)
 
 
 # ──────────────────────────────────────────────────────────────

@@ -474,7 +474,13 @@ async def search(data: SearchRequest, request: Request):
 
     model = get_model()
     query_vector = model.encode([query])[0]
-    resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+    try:
+        resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+    except ValueError as e:
+        if "aligned" in str(e) or "shape" in str(e):
+            supprimer_index_db(user_id)
+            raise HTTPException(status_code=400, detail="Le modèle d'indexation a été mis à jour. Vos anciens index ont été réinitialisés. Veuillez ré-uploader vos documents.")
+        raise e
 
     # Sauvegarder la recherche
     nom_pdf = data.pdf_name or "document"
@@ -543,7 +549,13 @@ async def chat(data: ChatRequest, request: Request):
         debut_v = time.time()
         model = get_model()
         query_vector = model.encode([query])[0]
-        resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+        try:
+            resultats = rechercher_avec_metadata(query_vector, vecteurs, chunks, top_k=TOP_K)
+        except ValueError as e:
+            if "aligned" in str(e) or "shape" in str(e):
+                supprimer_index_db(user_id)
+                raise HTTPException(status_code=400, detail="Le modèle d'indexation a été mis à jour. Vos anciens index ont été réinitialisés. Veuillez ré-uploader vos documents.")
+            raise e
         fin_v = time.time()
         
         temps_v = fin_v - debut_v
