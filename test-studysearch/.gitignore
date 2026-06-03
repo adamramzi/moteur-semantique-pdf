@@ -1,0 +1,36 @@
+# Caches Python et Pytest
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.cache/
+
+# Environnement virtuel
+venv/
+.venv/
+env/
+.env/
+
+# IDE et configurations éditeurs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# Webdriver binaries (exclu car téléchargé à la volée ou géré localement)
+chromedriver.exe
+chromedriver
+geckodriver
+
+# Dossiers de rapports et logs
+reports/
+result.xml
+*.log
+
+# Fichiers temporaires et PDFs générés pendant les tests E2E
+*.pdf
+tests/**/*.pdf

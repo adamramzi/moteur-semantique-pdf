@@ -72,7 +72,7 @@ async function api(path, opts = {}) {
 // ── Navigation ──────────────────────────────────────────────
 function goHome() { show('home-screen'); }
 function goAuth() { token = ''; userEmail = ''; localStorage.removeItem('token'); localStorage.removeItem('email'); show('auth-screen'); }
-function goDashboard() { show('dashboard-screen'); $('sidebar-email').textContent = userEmail; loadDashboard(); }
+function goDashboard() { show('dashboard-screen'); if ($('sidebar-email')) $('sidebar-email').textContent = userEmail; loadDashboard(); }
 
 // ── Auth Tabs ───────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -235,7 +235,15 @@ function addFiles(files) {
     const validExts = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt', '.rtf'];
     for (const f of files) {
         const ext = '.' + f.name.split('.').pop().toLowerCase();
-        if (validExts.includes(ext) && !selectedFiles.find(sf => sf.name === f.name)) {
+        if (!validExts.includes(ext)) continue;
+        
+        // Vérifier si le fichier a déjà été importé
+        if (allUserDocuments.some(d => d.nom_fichier === f.name)) {
+            toast('Le document "' + f.name + '" a déjà été importé.', 'error');
+            continue;
+        }
+        
+        if (!selectedFiles.find(sf => sf.name === f.name)) {
             selectedFiles.push(f);
         }
     }
@@ -444,6 +452,47 @@ document.addEventListener('DOMContentLoaded', () => {
         linkBackLoginForgot.addEventListener('click', (e) => {
             e.preventDefault();
             switchForm('login-form');
+        });
+    }
+
+    const btnSettingsChangePassword = $('btn-settings-change-password');
+    if (btnSettingsChangePassword) {
+        btnSettingsChangePassword.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const oldPwd = $('settings-old-password').value;
+            const newPwd = $('settings-new-password').value;
+            const confirmPwd = $('settings-confirm-password').value;
+
+            if (!oldPwd || !newPwd || !confirmPwd) {
+                return toast('Remplissez tous les champs.', 'error');
+            }
+            if (newPwd !== confirmPwd) {
+                return toast('Les mots de passe ne correspondent pas.', 'error');
+            }
+            if (newPwd.length < 6) {
+                return toast('Le nouveau mot de passe doit contenir au moins 6 caractères.', 'error');
+            }
+
+            try {
+                loading(true, 'Modification du mot de passe…');
+                const data = await api('/auth/change-password', {
+                    method: 'POST',
+                    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })
+                });
+                toast(data.message || 'Mot de passe modifié.', 'success');
+                
+                // Vider les champs
+                $('settings-old-password').value = '';
+                $('settings-new-password').value = '';
+                $('settings-confirm-password').value = '';
+                
+                // Déconnexion forcée par sécurité
+                logout();
+            } catch (err) {
+                toast(err.message, 'error');
+            } finally {
+                loading(false);
+            }
         });
     }
 });
@@ -880,6 +929,109 @@ window.deleteAllConversations = function() {
 
     // Optionnel : Afficher un petit toast de succès
     alert("Historique des conversations effacé avec succès.");
+};
+
+// ── Navigation & Close Search Results ──────────────────────
+window.closeSearchResults = function() {
+    const searchScreen = document.getElementById('search-results-screen');
+    const dashboardScreen = document.getElementById('dashboard-screen');
+    if (searchScreen) {
+        searchScreen.style.display = 'none';
+        searchScreen.classList.remove('active');
+    }
+    if (dashboardScreen) {
+        dashboardScreen.style.display = 'flex';
+        dashboardScreen.classList.add('active');
+    }
+};
+
+// ── History Search ──────────────────────────────────────────
+window.searchHistory = function() {
+    const inputEl = document.getElementById('search-history-input');
+    if (!inputEl) return;
+
+    const query = inputEl.value.trim().toLowerCase();
+    if (query.length === 0) return;
+
+    // 1. Fermer la modale
+    if (typeof closeSettingsModal === 'function') closeSettingsModal();
+
+    // 2. Basculer l'affichage vers la page de recherche
+    const dashboard = document.getElementById('dashboard-screen');
+    const searchScreen = document.getElementById('search-results-screen');
+
+    if (dashboard) dashboard.style.display = 'none'; // Cache le dashboard
+    if (dashboard) dashboard.classList.remove('active'); 
+    if (searchScreen) searchScreen.style.display = 'flex'; // Affiche la page de recherche
+    if (searchScreen) searchScreen.classList.add('active');
+
+    document.getElementById('search-query-display').innerText = '"' + query + '"';
+    const resultsContainer = document.getElementById('full-search-results');
+    resultsContainer.innerHTML = ''; // Nettoyer
+
+    // 3. RECUPÉRATION SÉCURISÉE DES DONNÉES
+    let convsToSearch = [];
+    if (typeof conversations !== 'undefined' && Array.isArray(conversations) && conversations.length > 0) {
+        convsToSearch = conversations;
+    } else {
+        try {
+            const localData = localStorage.getItem('conversations') || localStorage.getItem('studysearch_convos');
+            if (localData) convsToSearch = JSON.parse(localData);
+        } catch (e) { console.error("Erreur de parsing", e); }
+    }
+
+    let foundCount = 0;
+
+    // 4. Moteur de recherche
+    convsToSearch.forEach(conv => {
+        if (conv.email !== userEmail) return;
+
+        let matchFound = false;
+        let snippet = "Correspondance trouvée dans le document.";
+        let messageMatchIndex = 0;
+
+        // Vérification du titre
+        if (conv.nom && conv.nom.toLowerCase().includes(query)) {
+            matchFound = true;
+        }
+
+        // Vérification des messages
+        if (conv.messages && Array.isArray(conv.messages)) {
+            for (let i = 0; i < conv.messages.length; i++) {
+                const msg = conv.messages[i];
+                const msgText = msg.content || msg.text || "";
+
+                if (msgText.toLowerCase().includes(query)) {
+                    matchFound = true;
+                    messageMatchIndex = i;
+                    snippet = msgText.substring(0, 120) + "...";
+                    break;
+                }
+            }
+        }
+
+        // 5. Affichage si trouvé
+        if (matchFound) {
+            foundCount++;
+            const card = document.createElement('div');
+            card.className = 'result-card';
+
+            card.onclick = function() {
+                closeSearchResults(); // Retour au dashboard
+                jumpToMessage(conv.id, messageMatchIndex); // Ouvre la conversation
+            };
+
+            card.innerHTML = `
+                <h3>📄 ${conv.nom || "Conversation sans titre"}</h3>
+                <p>${snippet}</p>
+            `;
+            resultsContainer.appendChild(card);
+        }
+    });
+
+    if (foundCount === 0) {
+        resultsContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 1.2rem; margin-top: 50px;">Aucun résultat trouvé pour cette recherche.</p>';
+    }
 };
 
 // ── Init ────────────────────────────────────────────────────

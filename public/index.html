@@ -340,11 +340,45 @@
         </div>
 
         <div class="settings-section">
+            <h3>Modifier le mot de passe</h3>
+            <form id="change-password-form" onsubmit="return false;">
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <label for="settings-old-password" style="font-size: 0.85rem; color: var(--text-muted);">Ancien mot de passe</label>
+                    <input type="password" id="settings-old-password" placeholder="Ancien mot de passe" required style="width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text-main);">
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <label for="settings-new-password" style="font-size: 0.85rem; color: var(--text-muted);">Nouveau mot de passe</label>
+                    <input type="password" id="settings-new-password" placeholder="Nouveau mot de passe" required style="width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text-main);">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label for="settings-confirm-password" style="font-size: 0.85rem; color: var(--text-muted);">Confirmation</label>
+                    <input type="password" id="settings-confirm-password" placeholder="Confirmation" required style="width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-hover); color: var(--text-main);">
+                </div>
+                <button class="btn btn-primary" id="btn-settings-change-password" type="submit" style="font-size: 0.9rem; padding: 8px 16px;">Valider le changement</button>
+            </form>
+        </div>
+
+        <div class="settings-section">
             <h3>Apparence</h3>
             <button class="gemini-menu-btn" onclick="toggleTheme()">🌓 Basculer Thème (Clair/Sombre)</button>
         </div>
 
+        <div class="settings-section">
+            <h3>Rechercher dans l'historique</h3>
+            <div class="search-box-container">
+                <input type="text" id="search-history-input" placeholder="Chercher une question ou un titre..." onkeydown="if(event.key==='Enter') window.searchHistory()" />
+                <button class="btn-search-history" onclick="window.searchHistory()" title="Lancer la recherche">🔍</button>
+            </div>
+        </div>
     </div>
+</div>
+
+<div id="search-results-screen" class="screen" style="display: none;">
+    <div class="search-header">
+        <button class="icon-btn" onclick="closeSearchResults()">🔙 Retour au Dashboard</button>
+        <h2>Résultats pour : <span id="search-query-display" style="color: var(--text-muted); font-style: italic;"></span></h2>
+    </div>
+    <div id="full-search-results" class="full-search-results-container"></div>
 </div>
 
 <script src="/app.js"></script>

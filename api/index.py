@@ -152,6 +152,11 @@ class TitleRequest(BaseModel):
     query: str
     pdf_name: Optional[str] = None
 
+class ChangePasswordRequest(BaseModel):
+    old_password: str
+    new_password: str
+
+
 
 # ── Utilitaires JWT ─────────────────────────────────────────
 def create_token(email: str) -> str:
@@ -295,6 +300,26 @@ async def reset_password(data: ResetPasswordRequest):
 async def me(request: Request):
     user = get_current_user(request)
     return {"email": user["email"], "user_id": user["user_id"]}
+
+
+@app.post("/api/auth/change-password")
+async def change_password(data: ChangePasswordRequest, current_user = Depends(get_current_user)):
+    email = current_user["email"]
+    
+    # Vérifier l'ancien mot de passe
+    success, result = verifier_utilisateur(email, data.old_password)
+    if not success:
+        raise HTTPException(status_code=400, detail="Ancien mot de passe incorrect.")
+        
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Le nouveau mot de passe doit contenir au moins 6 caractères.")
+        
+    from database import modifier_mot_de_passe
+    res = modifier_mot_de_passe(email, data.new_password)
+    if not res["succes"]:
+        raise HTTPException(status_code=400, detail=res.get("erreur", "Erreur lors de la modification du mot de passe."))
+        
+    return {"message": "Mot de passe mis à jour avec succès !"}
 
 
 @app.delete("/api/user")

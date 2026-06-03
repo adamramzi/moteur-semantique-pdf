@@ -1,0 +1,73 @@
+pipeline {
+    agent any
+
+    triggers {
+        // Planification automatique : Déclenchement tous les jours à 10h00 du matin
+        cron('0 10 * * *')
+    }
+
+    options {
+        // Limitation du nombre d'historiques de build conservés pour économiser de l'espace
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Étape 1 : Récupérer le code source depuis le dépôt Git/GitHub lié
+                checkout scm
+            }
+        }
+
+        stage('Setup') {
+            steps {
+                // Étape 2 : Créer l'environnement virtuel Python et installer les dépendances nécessaires
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            python3 -m venv venv
+                            . venv/bin/activate
+                            pip install --upgrade pip
+                            pip install -r requirements.txt
+                        '''
+                    } else {
+                        bat '''
+                            python -m venv venv
+                            call venv\\Scripts\\activate
+                            python -m pip install --upgrade pip
+                            pip install -r requirements.txt
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Tests') {
+            steps {
+                // Étape 3 : Exécution de la suite de tests automatisée avec pytest
+                // --junitxml=reports/result.xml génère un rapport lisible par Jenkins
+                script {
+                    if (isUnix()) {
+                        sh '''
+                            . venv/bin/activate
+                            pytest --junitxml=reports/result.xml
+                        '''
+                    } else {
+                        bat '''
+                            call venv\\Scripts\\activate
+                            pytest --junitxml=reports/result.xml
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Publication et archivage des rapports de tests XML (génère les graphiques d'évolution dans l'interface Jenkins)
+            junit allowEmptyResults: true, testResults: 'reports/result.xml'
+        }
+    }
+}
