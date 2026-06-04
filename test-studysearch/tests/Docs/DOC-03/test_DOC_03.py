@@ -106,7 +106,7 @@ def test_prevention_doublons(driver, dummy_pdf):
     assert "déjà" in toast_error.text.lower() or "existe" in toast_error.text.lower(), \
         f"Erreur : Le texte du toast d'erreur doublon est incorrect : '{toast_error.text}'"
 
-    # ── Étape 4 (Assertion d'Intégrité) : Vérifier qu'il n'y a qu'une seule occurrence de doublon_test.pdf dans la liste déroulante
+    # ── Étape 4 (Assertion d'Intégrité) : Vérifier qu'il n'y a qu'une seule occurrence de dummy_document.pdf dans la liste déroulante
     options = select_pdf.find_elements(By.TAG_NAME, "option")
-    occurrences = [opt.get_attribute("value") for opt in options if opt.get_attribute("value") == "doublon_test.pdf"]
-    assert len(occurrences) == 1, f"Erreur : Le fichier doublon_test.pdf apparaît plusieurs fois ({len(occurrences)}) dans les options de recherche."
+    occurrences = [opt.get_attribute("value") for opt in options if opt.get_attribute("value") == "dummy_document.pdf"]
+    assert len(occurrences) == 1, f"Erreur : Le fichier dummy_document.pdf apparaît plusieurs fois ({len(occurrences)}) dans les options de recherche."

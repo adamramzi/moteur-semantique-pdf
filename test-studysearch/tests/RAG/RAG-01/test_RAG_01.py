@@ -94,8 +94,8 @@ def test_reponse_bassee_sur_document(driver, dummy_pdf):
     select_pdf = wait.until(EC.presence_of_element_located((By.ID, "chat-pdf-select")))
     wait.until(lambda d: d.find_element(By.ID, "chat-pdf-select").is_enabled())
     
-    # Vérifier que fact_test.pdf est bien sélectionné par défaut
-    assert select_pdf.get_attribute("value") == "fact_test.pdf", "Erreur : Le document fact_test.pdf n'est pas sélectionné par défaut."
+    # Vérifier que dummy_document.pdf est bien sélectionné par défaut
+    assert select_pdf.get_attribute("value") == "dummy_document.pdf", "Erreur : Le document dummy_document.pdf n'est pas sélectionné par défaut."
 
     # ── Étape 1 : Saisir la question dans la zone de chat
     chat_input = wait.until(EC.visibility_of_element_located((By.ID, "chat-input")))

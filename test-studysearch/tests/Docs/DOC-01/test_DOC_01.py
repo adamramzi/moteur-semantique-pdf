@@ -107,7 +107,7 @@ def test_upload_document_valide(driver, dummy_pdf):
     # Attendre que le sélecteur soit activé
     wait.until(lambda d: d.find_element(By.ID, "chat-pdf-select").is_enabled())
     
-    # Vérifier que "dummy_test.pdf" est bien présent dans la liste des options
+    # Vérifier que "dummy_document.pdf" est bien présent dans la liste des options
     options = select_pdf.find_elements(By.TAG_NAME, "option")
     option_values = [opt.get_attribute("value") for opt in options]
-    assert "dummy_test.pdf" in option_values, f"Erreur : Le fichier 'dummy_test.pdf' n'apparaît pas dans la liste des options. Options trouvées : {option_values}"
+    assert "dummy_document.pdf" in option_values, f"Erreur : Le fichier 'dummy_document.pdf' n'apparaît pas dans la liste des options. Options trouvées : {option_values}"
