@@ -148,4 +148,7 @@ def test_recherche_historique_succes(driver):
     finally:
         # Nettoyage du fichier temporaire à la fin du test
         if os.path.exists(dummy_file_path):
-            os.remove(dummy_file_path)
+            try:
+                os.remove(dummy_file_path)
+            except PermissionError:
+                pass
