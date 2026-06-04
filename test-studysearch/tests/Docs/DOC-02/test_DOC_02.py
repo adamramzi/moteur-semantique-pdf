@@ -4,7 +4,6 @@ import time
 import sqlite3
 import pytest
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -19,42 +18,17 @@ sys.path.append(r"c:\Users\dell\Desktop\moteur_semantique - Copie")
 from database import creer_utilisateur, valider_email
 
 @pytest.fixture
-def dummy_invalid_file():
-    """
-    Fixture pytest pour générer un fichier factice non autorisé (image_test.jpg)
-    et le supprimer proprement après l'exécution du test.
-    """
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(current_dir, "image_test.jpg")
-    
-    # Créer un fichier jpeg vide
-    with open(file_path, "wb") as f:
-        f.write(b"\xFF\xD8\xFF\xE0\x00\x10JFIF\x00\x01\x01\x01\x00`\x00`\x00\x00\xFF\xDB\x00C\x00...")
-        
-    yield file_path
-    
-    # Nettoyage à la fin du test
-    if os.path.exists(file_path):
-        os.remove(file_path)
-
-@pytest.fixture
 def driver():
     """
     Fixture pytest pour initialiser et fermer le WebDriver Chrome proprement.
-    Elle résout le chemin vers chromedriver.exe à la racine du projet.
+    Elle utilise Selenium Manager pour configurer ChromeDriver en mode headless.
     """
     chrome_options = Options()
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # Optionnel: décommenter pour exécuter en mode sans interface (headless)
-    # chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless")
     
-    # Résolution dynamique du chemin absolu de chromedriver.exe (4 niveaux car dans tests/Docs/DOC-02/test_DOC_02.py)
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    chromedriver_path = os.path.join(base_dir, "chromedriver.exe")
-    
-    service = Service(executable_path=chromedriver_path)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
     
     yield driver

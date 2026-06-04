@@ -4,7 +4,6 @@ import time
 import sqlite3
 import pytest
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -22,20 +21,14 @@ from database import creer_utilisateur, valider_email
 def driver():
     """
     Fixture pytest pour initialiser et fermer le WebDriver Chrome proprement.
-    Elle résout le chemin vers chromedriver.exe à la racine de l'espace de travail.
+    Elle utilise Selenium Manager pour configurer ChromeDriver en mode headless.
     """
     chrome_options = Options()
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # Optionnel: décommenter pour exécuter en mode sans interface (headless)
-    # chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless")
     
-    # Résolution dynamique du chemin absolu de chromedriver.exe
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    chromedriver_path = os.path.join(base_dir, "chromedriver.exe")
-    
-    service = Service(executable_path=chromedriver_path)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
     
     yield driver

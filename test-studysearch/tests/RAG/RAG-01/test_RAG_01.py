@@ -4,7 +4,6 @@ import time
 import sqlite3
 import pytest
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -20,45 +19,17 @@ sys.path.append(r"c:\Users\dell\Desktop\moteur_semantique - Copie")
 from database import creer_utilisateur, valider_email
 
 @pytest.fixture
-def dummy_pdf():
-    """
-    Fixture pytest pour générer dynamiquement un petit fichier PDF factice (fact_test.pdf)
-    contenant la phrase clé et le supprimer proprement après l'exécution du test.
-    """
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    pdf_path = os.path.join(current_dir, "fact_test.pdf")
-    
-    # Génération du PDF avec fpdf2
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Helvetica", size=12)
-    pdf.cell(200, 10, text="Le code d'accès au serveur principal est 8842-OMEGA.")
-    pdf.output(pdf_path)
-    
-    yield pdf_path
-    
-    # Nettoyage à la fin du test
-    if os.path.exists(pdf_path):
-        os.remove(pdf_path)
-
-@pytest.fixture
 def driver():
     """
     Fixture pytest pour initialiser et fermer le WebDriver Chrome proprement.
-    Elle résout le chemin vers chromedriver.exe à la racine du projet.
+    Elle utilise Selenium Manager pour configurer ChromeDriver en mode headless.
     """
     chrome_options = Options()
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # Optionnel: décommenter pour exécuter en mode sans interface (headless)
-    # chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--headless")
     
-    # Résolution dynamique du chemin absolu de chromedriver.exe (4 niveaux car dans tests/RAG/RAG-01/test_RAG_01.py)
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    chromedriver_path = os.path.join(base_dir, "chromedriver.exe")
-    
-    service = Service(executable_path=chromedriver_path)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)
     driver.maximize_window()
     
     yield driver
