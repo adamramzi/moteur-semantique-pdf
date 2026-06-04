@@ -8,7 +8,7 @@ def dummy_pdf(tmp_path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Helvetica", size=12)
-    pdf.cell(200, 10, txt="Document de test pour l'analyse IA. Sujet : Ingénierie et Akkodis.", ln=1, align='C')
+    pdf.cell(200, 10, txt="Document de test pour l'analyse IA. Sujet : Ingénierie et Akkodis. Le code d'accès au serveur principal est 8842-OMEGA.", ln=1, align='C')
     pdf.output(str(file_path))
     return str(file_path)
 
