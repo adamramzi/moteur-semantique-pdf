@@ -1,32 +1,20 @@
 import pytest
-import os
+from fpdf import FPDF
 
 @pytest.fixture
 def dummy_pdf(tmp_path):
-    """
-    Fixture globale pour générer un faux fichier PDF temporaire.
-    Retourne le chemin absolu du fichier sous forme de string.
-    """
-    pdf_dir = tmp_path / "documents"
-    pdf_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = pdf_dir / "dummy_document.pdf"
-    
-    # Écriture d'un contenu PDF factice simple
-    pdf_path.write_bytes(b"%PDF-1.4\n%dummy content")
-    
-    return str(pdf_path.resolve())
+    """Crée un VRAI fichier PDF temporaire valide pour les tests RAG"""
+    file_path = tmp_path / "dummy_document.pdf"
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=12)
+    pdf.cell(200, 10, txt="Document de test pour l'analyse IA. Sujet : Ingénierie et Akkodis.", ln=1, align='C')
+    pdf.output(str(file_path))
+    return str(file_path)
 
 @pytest.fixture
 def dummy_invalid_file(tmp_path):
-    """
-    Fixture globale pour générer un faux fichier texte invalide temporaire.
-    Retourne le chemin absolu du fichier sous forme de string.
-    """
-    invalid_dir = tmp_path / "invalid"
-    invalid_dir.mkdir(parents=True, exist_ok=True)
-    file_path = invalid_dir / "dummy_invalid.txt"
-    
-    # Écriture d'un contenu texte simple
-    file_path.write_text("Ceci est un fichier texte invalide pour les tests d'extension de document.", encoding="utf-8")
-    
-    return str(file_path.resolve())
+    """Crée un faux fichier image (.jpg) pour tester le rejet"""
+    file_path = tmp_path / "dummy_invalid.jpg"
+    file_path.write_bytes(b"faux contenu image")
+    return str(file_path)
