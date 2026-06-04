@@ -66,8 +66,20 @@ pipeline {
 
     post {
         always {
-            // Publication et archivage des rapports de tests XML (génère les graphiques d'évolution dans l'interface Jenkins)
-            junit allowEmptyResults: true, testResults: 'reports/result.xml'
+            // Enregistre les résultats dans Jenkins à chaque fois
+            junit 'reports/result.xml' 
+        }
+        success {
+            // Envoie cet email si les tests passent au vert
+            mail to: 'adam.ramzi@etu.uae.ac.ma',
+                 subject: "✅ Succès du Build Jenkins : ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
+                 body: "Félicitations Adam, la suite de tests automatisés pour StudySearch est passée avec succès (100% au vert) !"
+        }
+        failure {
+            // Envoie cet email si au moins un test échoue
+            mail to: 'adam.ramzi@etu.uae.ac.ma',
+                 subject: "❌ Échec du Build Jenkins : ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
+                 body: "Attention, une erreur s'est produite lors du dernier lancement des tests automatisés. Connecte-toi à Jenkins pour vérifier les logs de la console."
         }
     }
 }
