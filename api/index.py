@@ -507,6 +507,14 @@ async def search(data: SearchRequest, request: Request):
             raise HTTPException(status_code=400, detail="Le modèle d'indexation a été mis à jour. Vos anciens index ont été réinitialisés. Veuillez ré-uploader vos documents.")
         raise e
 
+    # Conversion en pourcentage de pertinence et filtrage (seuil >= 15%)
+    resultats_filtres = []
+    for r in resultats:
+        pertinence = r["score"] * 100
+        if pertinence >= 15.0:
+            resultats_filtres.append(r)
+    resultats = resultats_filtres
+
     # Sauvegarder la recherche
     nom_pdf = data.pdf_name or "document"
     if resultats:
@@ -586,9 +594,20 @@ async def chat(data: ChatRequest, request: Request):
         temps_v = fin_v - debut_v
         mlflow.log_metric("vector_search_latency", temps_v)
 
-        if not resultats:
-            raise HTTPException(status_code=404, detail="Aucun passage pertinent trouvé dans le document.")
+        # Conversion en pourcentage de pertinence et filtrage (seuil >= 15%)
+        resultats_filtres = []
+        for r in resultats:
+            pertinence = r["score"] * 100
+            if pertinence >= 15.0:
+                resultats_filtres.append(r)
 
+        if not resultats_filtres:
+            return {
+                "reponse": "Aucune information pertinente trouvée dans le document (pertinence inférieure à 15%).",
+                "score": 0.0
+            }
+
+        resultats = resultats_filtres
         score_du_meilleur_chunk = resultats[0]["score"]
 
         # Concaténer le contexte des 3 meilleurs chunks (en incluant le nom de fichier source)

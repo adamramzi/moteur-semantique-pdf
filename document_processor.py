@@ -160,7 +160,7 @@ def extraire_texte(file_path):
         return []
 
 
-def decouper_chunks(paragraphes_meta, taille=250, overlap=35):
+def decouper_chunks(paragraphes_meta, taille=30, overlap=10):
     """
     Prend une liste de dictionnaires avec métadonnées, les regroupe en chunks
     de maximum 'taille' mots avec un chevauchement de 'overlap' mots.
@@ -172,8 +172,8 @@ def decouper_chunks(paragraphes_meta, taille=250, overlap=35):
 
     Args:
         paragraphes_meta: Liste de dict {"texte": ..., "page": ..., "fichier": ...}
-        taille:           Nombre maximum de mots par chunk (défaut: 100).
-        overlap:          Nombre de mots de chevauchement entre chunks (défaut: 20).
+        taille:           Nombre maximum de mots par chunk (défaut: 30).
+        overlap:          Nombre de mots de chevauchement entre chunks (défaut: 10).
 
     Returns:
         Liste de dict : {"texte": "...", "page": N, "fichier": "nom.pdf"}

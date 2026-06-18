@@ -41,14 +41,21 @@ function toast(msg, type = 'info') {
     const t = document.createElement('div');
     t.className = `toast toast-${type}`;
     t.textContent = msg;
-    $('toast-container').appendChild(t);
+    const container = $('toast-container');
+    if (container) container.appendChild(t);
     setTimeout(() => t.remove(), 4000);
 }
 
 function loading(show, text) {
     const el = $('loading-overlay');
-    if (show) { $('loading-text').textContent = text || 'Chargement…'; el.classList.add('active'); }
-    else el.classList.remove('active');
+    if (show) {
+        const txtEl = $('loading-text');
+        if (txtEl) txtEl.textContent = text || 'Chargement…';
+        if (el) el.classList.add('active');
+    }
+    else {
+        if (el) el.classList.remove('active');
+    }
 }
 
 async function api(path, opts = {}) {
@@ -120,7 +127,8 @@ $('btn-register').addEventListener('click', async () => {
         loading(true, 'Création du compte…');
         const data = await api('/auth/register', { method: 'POST', body: JSON.stringify({ email, password: pwd, nom_complet: fullname }) });
         regEmail = email;
-        $('verify-email-text').textContent = `Code envoyé à ${email}`;
+        const verifyText = $('verify-email-text');
+        if (verifyText) verifyText.textContent = `Code envoyé à ${email}`;
         toast(data.message, 'success');
         show('verify-screen');
     } catch (e) { toast(e.message, 'error'); }
@@ -253,15 +261,21 @@ function addFiles(files) {
 function renderFileList() {
     const list = $('file-list');
     const btnC = $('upload-btn-container');
-    if (!selectedFiles.length) { list.innerHTML = ''; btnC.style.display = 'none'; return; }
-    btnC.style.display = 'block';
-    list.innerHTML = selectedFiles.map((f, i) => `
-        <div class="file-item">
-            <span class="file-item-name">${getFileIcon(f.name)} ${f.name}</span>
-            <span class="file-item-size">${(f.size / 1024).toFixed(0)} Ko</span>
-            <button class="file-remove" onclick="removeFile(${i})">✕</button>
-        </div>
-    `).join('');
+    if (!selectedFiles.length) {
+        if (list) list.innerHTML = '';
+        if (btnC) btnC.style.display = 'none';
+        return;
+    }
+    if (btnC) btnC.style.display = 'block';
+    if (list) {
+        list.innerHTML = selectedFiles.map((f, i) => `
+            <div class="file-item">
+                <span class="file-item-name">${getFileIcon(f.name)} ${f.name}</span>
+                <span class="file-item-size">${(f.size / 1024).toFixed(0)} Ko</span>
+                <button class="file-remove" onclick="removeFile(${i})">✕</button>
+            </div>
+        `).join('');
+    }
 }
 window.removeFile = (i) => { selectedFiles.splice(i, 1); renderFileList(); };
 
@@ -671,10 +685,11 @@ window.updateUserProfile = updateUserProfile;
 window.nouvelleConversation = nouvelleConversation;
 
 function renderMessages() {
-    const container = document.getElementById('chat-messages')
+    const container = document.getElementById('chat-messages');
+    if (!container) return;
     if (messagesChat.length === 0) {
-        container.innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>'
-        return
+        container.innerHTML = '<div class="chat-welcome"><p>📂 Uploadez vos documents puis posez votre question !</p></div>';
+        return;
     }
     container.innerHTML = messagesChat.map((m, index) => {
         if (m.role === 'user') {
@@ -696,7 +711,7 @@ function renderMessages() {
         
         return `<div class="msg-bot" id="msg-${index}">${m.content}<div class="msg-meta">${metaText}</div></div>`;
     }).join('');
-    container.scrollTop = container.scrollHeight
+    container.scrollTop = container.scrollHeight;
 }
 
 async function doChat() {
@@ -965,9 +980,10 @@ window.searchHistory = function() {
     if (searchScreen) searchScreen.style.display = 'flex'; // Affiche la page de recherche
     if (searchScreen) searchScreen.classList.add('active');
 
-    document.getElementById('search-query-display').innerText = '"' + query + '"';
+    const displayQueryEl = document.getElementById('search-query-display');
+    if (displayQueryEl) displayQueryEl.innerText = '"' + query + '"';
     const resultsContainer = document.getElementById('full-search-results');
-    resultsContainer.innerHTML = ''; // Nettoyer
+    if (resultsContainer) resultsContainer.innerHTML = ''; // Nettoyer
 
     // 3. RECUPÉRATION SÉCURISÉE DES DONNÉES
     let convsToSearch = [];
@@ -1025,12 +1041,12 @@ window.searchHistory = function() {
                 <h3>📄 ${conv.nom || "Conversation sans titre"}</h3>
                 <p>${snippet}</p>
             `;
-            resultsContainer.appendChild(card);
+            if (resultsContainer) resultsContainer.appendChild(card);
         }
     });
 
     if (foundCount === 0) {
-        resultsContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 1.2rem; margin-top: 50px;">Aucun résultat trouvé pour cette recherche.</p>';
+        if (resultsContainer) resultsContainer.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 1.2rem; margin-top: 50px;">Aucun résultat trouvé pour cette recherche.</p>';
     }
 };
 
