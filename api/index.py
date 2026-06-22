@@ -68,7 +68,7 @@ SYSTEM_PROMPT_TEMPLATE = """Tu es un assistant académique expert. Tu dois répo
 Instructions strictes :
 - Ne fournis pas de préambule, réponds directement à la question de manière claire et concise.
 - Si tu utilises une information, tu dois OBLIGATOIREMENT citer le nom du fichier PDF source.
-- Si l'information exacte pour répondre à la question ne se trouve pas explicitement dans le contexte fourni, tu as l'INTERDICTION STRICTE de faire des déductions, de mentionner d'autres éléments du texte, ou d'extrapoler. Tu dois répondre EXACTEMENT et UNIQUEMENT par : 'Je suis désolé, mais je ne trouve pas cette information dans le document cible.' N'ajoute aucune autre phrase.
+- Si l'information exacte pour répondre à la question ne se trouve pas explicitement dans le contexte fourni, tu as l'INTERDICTION STRICTE de faire des déductions, de mentionner d'autres éléments du texte, ou d'extrapoler. Tu dois répondre EXACTEMENT et UNIQUEMENT par : 'Il ne se trouve aucune réponse pour cette question dans le document.' N'ajoute aucune autre phrase.
 
 CONTEXTE :
 {context}
@@ -507,13 +507,7 @@ async def search(data: SearchRequest, request: Request):
             raise HTTPException(status_code=400, detail="Le modèle d'indexation a été mis à jour. Vos anciens index ont été réinitialisés. Veuillez ré-uploader vos documents.")
         raise e
 
-    # Conversion en pourcentage de pertinence et filtrage (seuil >= 15%)
-    resultats_filtres = []
-    for r in resultats:
-        pertinence = r["score"] * 100
-        if pertinence >= 15.0:
-            resultats_filtres.append(r)
-    resultats = resultats_filtres
+    # Pas de filtrage par seuil de pertinence (seuil désactivé)
 
     # Sauvegarder la recherche
     nom_pdf = data.pdf_name or "document"
@@ -594,20 +588,13 @@ async def chat(data: ChatRequest, request: Request):
         temps_v = fin_v - debut_v
         mlflow.log_metric("vector_search_latency", temps_v)
 
-        # Conversion en pourcentage de pertinence et filtrage (seuil >= 15%)
-        resultats_filtres = []
-        for r in resultats:
-            pertinence = r["score"] * 100
-            if pertinence >= 15.0:
-                resultats_filtres.append(r)
-
-        if not resultats_filtres:
+        # Pas de filtrage par seuil de pertinence (seuil désactivé)
+        if not resultats:
             return {
-                "reponse": "Aucune information pertinente trouvée dans le document (pertinence inférieure à 15%).",
+                "reponse": "Il ne se trouve aucune réponse pour cette question dans le document.",
                 "score": 0.0
             }
 
-        resultats = resultats_filtres
         score_du_meilleur_chunk = resultats[0]["score"]
 
         # Concaténer le contexte des 3 meilleurs chunks (en incluant le nom de fichier source)
